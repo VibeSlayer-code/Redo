@@ -1,0 +1,2 @@
+0 = normal
+2 = action blocked but no error or crash
