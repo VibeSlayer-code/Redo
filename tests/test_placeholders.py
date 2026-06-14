@@ -25,6 +25,23 @@ def test_replace_placeholders_replaces_all_occurrences():
     assert result == "cd my-app && echo my-app"
 
 
+def test_placeholder_values_escape_shell_metacharacters():
+    text = 'git commit -m "{message}"'
+
+    result = placeholders.replace_placeholders(text, {"message": 'ok" && echo hacked'})
+
+    assert result == 'git commit -m "ok\\" echo hacked"'
+    assert "&&" not in result
+
+
+def test_process_commands_strips_newlines_from_placeholder_values(monkeypatch):
+    monkeypatch.setattr(placeholders, "prompt", lambda label: "first\nsecond")
+
+    result = placeholders.process_commands(["echo {message}"])
+
+    assert result == ["echo first second"]
+
+
 def test_process_commands_prompts_once_per_placeholder(monkeypatch):
     prompts = []
 

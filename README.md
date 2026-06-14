@@ -132,6 +132,10 @@ Valid placeholder names use letters, numbers, and underscores, and cannot start 
 {ticket_123}
 ```
 
+Placeholder values are sanitized before execution: newlines and shell command separators like `&&`, `||`, `;`, and `|` are removed so a prompt value cannot silently append a second command.
+
+Workflow names cannot be blank or reuse Redo command names such as `run`, `new`, `delete`, or `stats`.
+
 ## Demo Workflow
 
 ```bash

@@ -4,6 +4,7 @@ from rich.prompt import Prompt
 
 
 PLACEHOLDER_PATTERN = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
+SHELL_SEPARATOR_PATTERN = re.compile(r"&&|\|\||[;&|`<>]")
 prompt = Prompt.ask
 
 
@@ -37,10 +38,20 @@ def collect_placeholder_values(placeholders):
     return {name: prompt(name) for name in placeholders}
 
 
+def _sanitize_placeholder_value(value):
+    sanitized = str(value).replace("\r", " ").replace("\n", " ").replace("\x00", "")
+    sanitized = SHELL_SEPARATOR_PATTERN.sub(" ", sanitized)
+    sanitized = sanitized.replace("$(", "$ (")
+    sanitized = sanitized.replace('"', r"\"")
+    return " ".join(sanitized.split())
+
+
 def replace_placeholders(text, values):
     def replacement(match):
         name = match.group(1)
-        return str(values.get(name, match.group(0)))
+        if name not in values:
+            return match.group(0)
+        return _sanitize_placeholder_value(values[name])
 
     return PLACEHOLDER_PATTERN.sub(replacement, text)
 

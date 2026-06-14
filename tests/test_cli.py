@@ -14,6 +14,28 @@ def test_root_command_shows_ascii_banner_instead_of_help_description():
     assert "Usage:" not in result.output
 
 
+def test_help_option_shows_custom_redo_help_menu():
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["--help"])
+
+    assert result.exit_code == 0
+    assert "Redo command center" in result.output
+    assert "Daily workflow" in result.output
+    assert "Utilities" in result.output
+    assert "Bookmarks for terminal workflows" in result.output
+    assert "Usage:" not in result.output
+
+
+def test_subcommand_help_still_works_after_custom_root_help():
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["run", "--help"])
+
+    assert result.exit_code == 0
+    assert "Run a saved workflow" in result.output
+
+
 def test_info_option_shows_banner_version_and_credit():
     cli = CliRunner()
 
@@ -149,3 +171,14 @@ def test_new_workflow_first_run_can_skip_guide(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "Redo guide" not in result.output
     assert storage.should_offer_first_run_guide() is False
+
+
+def test_new_workflow_rejects_reserved_name_before_prompts(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["new", "run"])
+
+    assert result.exit_code == 0
+    assert "reserved" in result.output
+    assert "Description:" not in result.output

@@ -54,6 +54,18 @@ def test_add_workflow_rejects_duplicates(tmp_path, monkeypatch):
     assert result["status"] == "warning"
 
 
+def test_add_workflow_rejects_blank_or_reserved_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+
+    blank_result = storage.add_workflow("   ", "Bad", ["echo bad"])
+    reserved_result = storage.add_workflow("run", "Bad", ["echo bad"])
+
+    assert blank_result["code"] == 2
+    assert "workflow name" in blank_result["message"]
+    assert reserved_result["code"] == 2
+    assert "reserved" in reserved_result["message"]
+
+
 def test_delete_workflow_removes_existing_workflow(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
     storage.add_workflow("clean", "Clean build output", ["rm -rf dist"])
@@ -104,6 +116,17 @@ def test_rename_workflow_moves_existing_workflow(tmp_path, monkeypatch):
     assert storage.get_workflow("checks")["data"]["commands"] == ["pytest"]
 
 
+def test_copy_and_rename_reject_reserved_target_names(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+    storage.add_workflow("ship", "Commit and push", ["git push"])
+
+    copy_result = storage.copy_workflow("ship", "run")
+    rename_result = storage.rename_workflow("ship", "delete")
+
+    assert copy_result["code"] == 2
+    assert rename_result["code"] == 2
+
+
 def test_find_workflows_matches_name_description_and_commands(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
     storage.add_workflow("ship", "Commit and push", ["git push"])
@@ -128,6 +151,29 @@ def test_export_and_import_workflows(tmp_path, monkeypatch):
     assert export_result["status"] == "success"
     assert import_result["status"] == "success"
     assert storage.get_workflow("ship")["data"]["commands"] == ["git push"]
+
+
+def test_import_skips_reserved_and_invalid_workflow_names(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflow.json"
+    import_file = tmp_path / "import.json"
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+    import_file.write_text(
+        json.dumps(
+            {
+                "run": {"description": "reserved", "commands": ["echo bad"], "runs": 0},
+                "   ": {"description": "blank", "commands": ["echo bad"], "runs": 0},
+                "ship": {"description": "valid", "commands": ["git push"], "runs": "bad"},
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    result = storage.import_workflows(import_file)
+
+    workflows = storage.load_workflows()["data"]
+    assert result["status"] == "success"
+    assert set(workflows) == {"ship"}
+    assert workflows["ship"]["runs"] == 0
 
 
 def test_clear_workflows_resets_storage(tmp_path, monkeypatch):
@@ -210,5 +256,31 @@ def test_autofix_normalizes_invalid_workflow_entries(tmp_path, monkeypatch):
             "description": "",
             "commands": ["git push"],
             "runs": 2,
+        }
+    }
+
+
+def test_autofix_removes_reserved_workflow_names(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflows.json"
+    data_file.write_text(
+        json.dumps(
+            {
+                "run": {"description": "Reserved", "commands": ["echo bad"], "runs": 0},
+                "ship": {"description": "Valid", "commands": "git push", "runs": "3"},
+            }
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+
+    result = storage.autofix_storage()
+
+    fixed = json.loads(data_file.read_text(encoding="utf-8"))
+    assert result["code"] == 0
+    assert fixed == {
+        "ship": {
+            "description": "Valid",
+            "commands": ["git push"],
+            "runs": 3,
         }
     }

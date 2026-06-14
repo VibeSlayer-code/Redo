@@ -13,8 +13,12 @@ from rich.text import Text
 console = Console(highlight=False)
 
 DANGEROUS_PATTERNS = [
-    r"\brm\s+-[^\n;]*r[^\n;]*f\b",
+    r"\brm\s+-[a-z]*r[a-z]*f\b",
+    r"\brm\s+-[a-z]*f[a-z]*r\b",
     r"\bdel\s+/s\b",
+    r"\brd\s+/s\b",
+    r"\brmdir\s+/s\b",
+    r"\bremove-item\b(?=.*-recurse\b)(?=.*-force\b)",
     r"\bformat\b",
     r"\bsudo\b",
     r"\bgit\s+reset\s+--hard\b",
@@ -40,14 +44,14 @@ def _result(code, status, message, data=None):
 
 def is_dangerous_command(command):
     normalized = command.strip().lower()
-    return any(re.search(pattern, normalized) for pattern in DANGEROUS_PATTERNS)
+    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in DANGEROUS_PATTERNS)
 
 
 def _status_style(status):
     if status == STATUS_DONE:
         return "bold green"
     if status == STATUS_RUNNING:
-        return "bold cyan"
+        return "bold steel_blue"
     if status == STATUS_FAILED:
         return "bold red"
     if status == STATUS_SKIPPED:
@@ -59,8 +63,8 @@ def _workflow_table(commands, statuses):
     table = Table(
         title="Running your workflow",
         box=box.ROUNDED,
-        border_style="cyan",
-        header_style="bold cyan",
+        border_style="grey46",
+        header_style="bold steel_blue",
         expand=True,
     )
     table.add_column("#", justify="right", style="dim", no_wrap=True)

@@ -5,8 +5,18 @@ from modules import runner
 
 def test_is_dangerous_command_detects_known_patterns():
     assert runner.is_dangerous_command("rm -rf dist") is True
+    assert runner.is_dangerous_command("rm -fr dist") is True
+    assert runner.is_dangerous_command("Remove-Item -Recurse -Force dist") is True
+    assert runner.is_dangerous_command("rd /s /q dist") is True
     assert runner.is_dangerous_command("git reset --hard HEAD") is True
     assert runner.is_dangerous_command("echo safe") is False
+
+
+def test_runner_status_table_uses_calm_palette():
+    assert "cyan" not in runner._status_style(runner.STATUS_RUNNING)
+    table = runner._workflow_table(["echo ok"], [runner.STATUS_PENDING])
+    assert table.border_style == "grey46"
+    assert table.header_style == "bold steel_blue"
 
 
 def test_run_workflow_commands_dry_run_does_not_execute(monkeypatch):

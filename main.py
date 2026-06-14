@@ -6,10 +6,12 @@ from modules import placeholders, runner, storage, ui
 
 VERSION = "0.1.0"
 CREDIT = "credit-vibeslayer"
+COMMAND_CONTEXT = {"help_option_names": ["--help", "-h"]}
 
 app = typer.Typer(
     help="Redo saves repeated terminal workflows and runs them again with one command.",
     no_args_is_help=False,
+    context_settings={"help_option_names": []},
 )
 
 
@@ -37,9 +39,14 @@ def _offer_first_run_guide():
 @app.callback(invoke_without_command=True)
 def root(
     ctx: typer.Context,
+    help: bool = typer.Option(False, "--help", "-h", help="Show Redo help menu."),
     info: bool = typer.Option(False, "--info", help="Show Redo version and credits."),
 ):
     """Bookmarks for terminal workflows."""
+    if help:
+        ui.show_help_menu(VERSION)
+        raise typer.Exit(code=0)
+
     if info:
         ui.show_info(VERSION, CREDIT)
         raise typer.Exit(code=0)
@@ -49,16 +56,21 @@ def root(
         raise typer.Exit(code=0)
 
 
-@app.command("init")
+@app.command("init", context_settings=COMMAND_CONTEXT)
 def init():
     """Create C:/redo/files/workflows.json if needed."""
     result = storage.initialize_file()
     _print_result(result)
 
 
-@app.command("new")
+@app.command("new", context_settings=COMMAND_CONTEXT)
 def new_workflow(name: str = typer.Argument(..., help="Workflow name to create.")):
     """Create a reusable workflow."""
+    name_result = storage.validate_workflow_name(name)
+    if name_result["code"] != 0:
+        _print_result(name_result)
+        raise typer.Exit(code=0)
+
     storage.initialize_file()
     _offer_first_run_guide()
     description = Prompt.ask("Description")
@@ -79,7 +91,7 @@ def new_workflow(name: str = typer.Argument(..., help="Workflow name to create."
     _print_result(result)
 
 
-@app.command("list")
+@app.command("list", context_settings=COMMAND_CONTEXT)
 def list_workflows():
     """List saved workflows."""
     result = storage.load_workflows()
@@ -90,7 +102,7 @@ def list_workflows():
     ui.show_workflows_table(result["data"])
 
 
-@app.command("search")
+@app.command("search", context_settings=COMMAND_CONTEXT)
 def search_workflows(query: str = typer.Argument(..., help="Text to find in workflows.")):
     """Search workflow names, descriptions, and commands."""
     result = storage.find_workflows(query)
@@ -101,7 +113,7 @@ def search_workflows(query: str = typer.Argument(..., help="Text to find in work
     ui.show_workflows_table(result["data"])
 
 
-@app.command("show")
+@app.command("show", context_settings=COMMAND_CONTEXT)
 def show_workflow(name: str = typer.Argument(..., help="Workflow name to inspect.")):
     """Show workflow details."""
     result = storage.get_workflow(name)
@@ -112,14 +124,14 @@ def show_workflow(name: str = typer.Argument(..., help="Workflow name to inspect
     ui.show_workflow_details(name, result["data"])
 
 
-@app.command("delete")
+@app.command("delete", context_settings=COMMAND_CONTEXT)
 def delete_workflow(name: str = typer.Argument(..., help="Workflow name to delete.")):
     """Delete a saved workflow."""
     result = storage.delete_workflow(name)
     _print_result(result)
 
 
-@app.command("clearhistory")
+@app.command("clearhistory", context_settings=COMMAND_CONTEXT)
 def clearhistory(
     yes: bool = typer.Option(False, "--yes", "-y", help="Clear without asking for confirmation."),
 ):
@@ -132,13 +144,13 @@ def clearhistory(
     _print_result(result)
 
 
-@app.command("guide")
+@app.command("guide", context_settings=COMMAND_CONTEXT)
 def guide():
     """Show the Redo quick-start guide."""
     ui.show_guide()
 
 
-@app.command("copy")
+@app.command("copy", context_settings=COMMAND_CONTEXT)
 def copy_workflow(
     source: str = typer.Argument(..., help="Workflow to copy."),
     target: str = typer.Argument(..., help="New workflow name."),
@@ -148,7 +160,7 @@ def copy_workflow(
     _print_result(result)
 
 
-@app.command("rename")
+@app.command("rename", context_settings=COMMAND_CONTEXT)
 def rename_workflow(
     old_name: str = typer.Argument(..., help="Current workflow name."),
     new_name: str = typer.Argument(..., help="New workflow name."),
@@ -158,7 +170,7 @@ def rename_workflow(
     _print_result(result)
 
 
-@app.command("run")
+@app.command("run", context_settings=COMMAND_CONTEXT)
 def run_workflow(
     name: str = typer.Argument(..., help="Workflow name to run."),
     dry: bool = typer.Option(False, "--dry", help="Preview commands without running them."),
@@ -181,7 +193,7 @@ def run_workflow(
         raise typer.Exit(code=1)
 
 
-@app.command("stats")
+@app.command("stats", context_settings=COMMAND_CONTEXT)
 def stats():
     """Show workflow usage stats."""
     result = storage.load_workflows()
@@ -192,20 +204,20 @@ def stats():
     ui.show_stats(result["data"])
 
 
-@app.command("path")
+@app.command("path", context_settings=COMMAND_CONTEXT)
 def workflow_path():
     """Show where Redo stores workflows for this directory."""
     typer.echo(str(storage.DATA_FILE.resolve()))
 
 
-@app.command("export")
+@app.command("export", context_settings=COMMAND_CONTEXT)
 def export_workflows(destination: str = typer.Argument(..., help="JSON file to write.")):
     """Export workflows to a JSON backup file."""
     result = storage.export_workflows(destination)
     _print_result(result)
 
 
-@app.command("import")
+@app.command("import", context_settings=COMMAND_CONTEXT)
 def import_workflows(
     source: str = typer.Argument(..., help="JSON workflow file to import."),
     replace: bool = typer.Option(False, "--replace", help="Replace existing workflows."),
@@ -215,7 +227,7 @@ def import_workflows(
     _print_result(result)
 
 
-@app.command("doctor")
+@app.command("doctor", context_settings=COMMAND_CONTEXT)
 def doctor():
     """Check workflow storage and flag risky saved commands."""
     result = storage.load_workflows()
@@ -245,7 +257,7 @@ def doctor():
     ui.show_doctor_report(report)
 
 
-@app.command("autofix")
+@app.command("autofix", context_settings=COMMAND_CONTEXT)
 def autofix():
     """Fix common Redo storage problems automatically."""
     result = storage.autofix_storage()

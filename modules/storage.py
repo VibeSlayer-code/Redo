@@ -6,6 +6,27 @@ from pathlib import Path
 DATA_DIR = Path("C:/redo/files")
 DATA_FILE = DATA_DIR / "workflows.json"
 STATE_FILE_NAME = "redo_state.json"
+RESERVED_WORKFLOW_NAMES = {
+    "autofix",
+    "clearhistory",
+    "copy",
+    "delete",
+    "doctor",
+    "export",
+    "guide",
+    "help",
+    "import",
+    "info",
+    "init",
+    "list",
+    "new",
+    "path",
+    "rename",
+    "run",
+    "search",
+    "show",
+    "stats",
+}
 
 
 def _result(code, status, message, data=None):
@@ -17,6 +38,22 @@ def _result(code, status, message, data=None):
     if data is not None:
         result["data"] = data
     return result
+
+
+def _validate_workflow_name(name):
+    clean_name = str(name).strip()
+    if not clean_name:
+        return None, _result(2, "warning", "workflow name cannot be blank")
+    if clean_name.lower() in RESERVED_WORKFLOW_NAMES:
+        return None, _result(2, "warning", "workflow name is reserved by a Redo command")
+    return clean_name, None
+
+
+def validate_workflow_name(name):
+    _, error = _validate_workflow_name(name)
+    if error:
+        return error
+    return _result(0, "success", "workflow name is valid")
 
 
 def initialize_file():
@@ -70,9 +107,13 @@ def _normalize_workflows(workflows):
 
     normalized = {}
     for name, workflow in workflows.items():
-        fixed_workflow = _normalize_workflow(name, workflow)
+        clean_name, name_error = _validate_workflow_name(name)
+        if name_error:
+            continue
+
+        fixed_workflow = _normalize_workflow(clean_name, workflow)
         if fixed_workflow is not None:
-            normalized[name] = fixed_workflow
+            normalized[clean_name] = fixed_workflow
 
     return normalized
 
@@ -197,6 +238,10 @@ def mark_first_run_guide_seen():
 
 
 def add_workflow(name, description, commands):
+    name, name_error = _validate_workflow_name(name)
+    if name_error:
+        return name_error
+
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -219,6 +264,7 @@ def add_workflow(name, description, commands):
 
 
 def get_workflow(name):
+    name = str(name).strip()
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -231,6 +277,7 @@ def get_workflow(name):
 
 
 def delete_workflow(name):
+    name = str(name).strip()
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -248,6 +295,7 @@ def delete_workflow(name):
 
 
 def increment_runs(name):
+    name = str(name).strip()
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -265,6 +313,11 @@ def increment_runs(name):
 
 
 def copy_workflow(source_name, target_name):
+    source_name = str(source_name).strip()
+    target_name, name_error = _validate_workflow_name(target_name)
+    if name_error:
+        return name_error
+
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -286,6 +339,11 @@ def copy_workflow(source_name, target_name):
 
 
 def rename_workflow(old_name, new_name):
+    old_name = str(old_name).strip()
+    new_name, name_error = _validate_workflow_name(new_name)
+    if name_error:
+        return name_error
+
     result = load_workflows()
     if result["code"] == 1:
         return result
@@ -368,18 +426,23 @@ def import_workflows(source, replace=False):
     skipped_count = 0
 
     for name, workflow in imported.items():
+        clean_name, name_error = _validate_workflow_name(name)
+        if name_error:
+            skipped_count += 1
+            continue
         if not isinstance(workflow, dict):
             skipped_count += 1
             continue
-        if not replace and name in workflows:
+        if not replace and clean_name in workflows:
             skipped_count += 1
             continue
 
-        workflows[name] = {
-            "description": workflow.get("description", ""),
-            "commands": workflow.get("commands", []),
-            "runs": int(workflow.get("runs", 0)),
-        }
+        normalized_workflow = _normalize_workflow(clean_name, workflow)
+        if normalized_workflow is None:
+            skipped_count += 1
+            continue
+
+        workflows[clean_name] = normalized_workflow
         imported_count += 1
 
     save_result = save_workflows(workflows)
