@@ -1,4 +1,7 @@
 import subprocess
+from io import StringIO
+
+from rich.console import Console
 
 from modules import runner
 
@@ -17,6 +20,19 @@ def test_runner_status_table_uses_calm_palette():
     table = runner._workflow_table(["echo ok"], [runner.STATUS_PENDING])
     assert table.border_style == "grey46"
     assert table.header_style == "bold steel_blue"
+    assert table.title is None
+
+
+def test_runner_workflow_view_uses_loader_status_message():
+    output = StringIO()
+    test_console = Console(file=output, force_terminal=False, width=100, color_system=None)
+
+    test_console.print(runner._workflow_view(["echo ok"], [runner.STATUS_RUNNING]))
+
+    rendered = output.getvalue()
+    assert "Your workflow is running, check the status" in rendered
+    assert "Running your workflow" not in rendered
+    assert runner.SPINNER_NAME == "line"
 
 
 def test_run_workflow_commands_dry_run_does_not_execute(monkeypatch):

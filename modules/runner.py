@@ -6,6 +6,7 @@ from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
 from rich.prompt import Confirm
+from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
 
@@ -29,6 +30,7 @@ STATUS_RUNNING = "Running"
 STATUS_DONE = "Done"
 STATUS_FAILED = "Failed"
 STATUS_SKIPPED = "Skipped"
+SPINNER_NAME = "line"
 
 
 def _result(code, status, message, data=None):
@@ -61,7 +63,6 @@ def _status_style(status):
 
 def _workflow_table(commands, statuses):
     table = Table(
-        title="Running your workflow",
         box=box.ROUNDED,
         border_style="grey46",
         header_style="bold steel_blue",
@@ -76,6 +77,20 @@ def _workflow_table(commands, statuses):
         table.add_row(str(index), command, Text(status, style=_status_style(status)))
 
     return table
+
+
+def _workflow_view(commands, statuses):
+    loader = Spinner(
+        SPINNER_NAME,
+        text=Text("Your workflow is running, check the status", style="bold steel_blue"),
+        style="steel_blue",
+    )
+    return Panel(
+        Group(loader, "", _workflow_table(commands, statuses)),
+        title="Workflow status",
+        border_style="grey46",
+        box=box.ROUNDED,
+    )
 
 
 def _trim_output(output, max_lines=18):
@@ -175,25 +190,25 @@ def run_workflow_commands(commands, dry_run=False):
     failed_result = None
 
     with Live(
-        _workflow_table(commands, statuses),
+        _workflow_view(commands, statuses),
         console=console,
         refresh_per_second=8,
     ) as live:
         for index, command in enumerate(commands):
             statuses[index] = STATUS_RUNNING
-            live.update(_workflow_table(commands, statuses))
+            live.update(_workflow_view(commands, statuses))
 
             result = run_command(command)
             if result["code"] != 0:
                 statuses[index] = STATUS_FAILED
                 for remaining_index in range(index + 1, len(statuses)):
                     statuses[remaining_index] = STATUS_SKIPPED
-                live.update(_workflow_table(commands, statuses))
+                live.update(_workflow_view(commands, statuses))
                 failed_result = result
                 break
 
             statuses[index] = STATUS_DONE
-            live.update(_workflow_table(commands, statuses))
+            live.update(_workflow_view(commands, statuses))
 
     if failed_result is not None:
         console.print()

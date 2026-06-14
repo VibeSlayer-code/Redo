@@ -69,6 +69,28 @@ def test_run_dry_preview_does_not_increment_runs(tmp_path, monkeypatch):
     assert storage.get_workflow("hello")["data"]["runs"] == 0
 
 
+def test_run_without_dry_does_not_print_preflight_commands_table(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+    storage.add_workflow("hello", "Say hello", ["echo hello"])
+    monkeypatch.setattr(
+        main.runner,
+        "run_workflow_commands",
+        lambda commands, dry_run=False: {
+            "code": 0,
+            "status": "success",
+            "message": "workflow completed successfully",
+            "data": {"dry_run": dry_run, "commands": commands},
+        },
+    )
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["run", "hello"])
+
+    assert result.exit_code == 0
+    assert "Commands" not in result.output
+    assert "workflow completed successfully" in result.output
+
+
 def test_copy_rename_search_and_path_commands(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
     storage.add_workflow("ship", "Commit and push", ["git push"])

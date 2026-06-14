@@ -182,7 +182,8 @@ def run_workflow(
         raise typer.Exit(code=0 if result["code"] == 2 else 1)
 
     commands = placeholders.process_commands(result["data"].get("commands", []))
-    ui.show_commands(commands)
+    if dry:
+        ui.show_commands(commands)
 
     run_result = runner.run_workflow_commands(commands, dry_run=dry)
     _print_result(run_result)
