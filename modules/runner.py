@@ -82,7 +82,7 @@ def _workflow_table(commands, statuses):
 def _workflow_view(commands, statuses):
     loader = Spinner(
         SPINNER_NAME,
-        text=Text("Your workflow is running, check the status", style="bold steel_blue"),
+        text=Text("Your workflow is running, check the status.", style="bold steel_blue"),
         style="steel_blue",
     )
     return Panel(

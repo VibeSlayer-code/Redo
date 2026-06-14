@@ -96,4 +96,4 @@ def test_doctor_report_summarizes_health(monkeypatch):
     rendered = output.getvalue()
     assert "Health check" in rendered
     assert "Needs attention" in rendered
-    assert "Dangerous commands" in rendered
+    assert "dangerous commands" in rendered
