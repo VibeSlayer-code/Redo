@@ -1,11 +1,16 @@
 import re
 import subprocess
 
-from rich.console import Console
+from rich import box
+from rich.console import Console, Group
+from rich.live import Live
+from rich.panel import Panel
 from rich.prompt import Confirm
+from rich.table import Table
+from rich.text import Text
 
 
-console = Console()
+console = Console(highlight=False)
 
 DANGEROUS_PATTERNS = [
     r"\brm\s+-[^\n;]*r[^\n;]*f\b",
@@ -14,6 +19,12 @@ DANGEROUS_PATTERNS = [
     r"\bsudo\b",
     r"\bgit\s+reset\s+--hard\b",
 ]
+
+STATUS_PENDING = "Pending"
+STATUS_RUNNING = "Running"
+STATUS_DONE = "Done"
+STATUS_FAILED = "Failed"
+STATUS_SKIPPED = "Skipped"
 
 
 def _result(code, status, message, data=None):
@@ -32,17 +43,110 @@ def is_dangerous_command(command):
     return any(re.search(pattern, normalized) for pattern in DANGEROUS_PATTERNS)
 
 
+def _status_style(status):
+    if status == STATUS_DONE:
+        return "bold green"
+    if status == STATUS_RUNNING:
+        return "bold cyan"
+    if status == STATUS_FAILED:
+        return "bold red"
+    if status == STATUS_SKIPPED:
+        return "yellow"
+    return "dim"
+
+
+def _workflow_table(commands, statuses):
+    table = Table(
+        title="Running your workflow",
+        box=box.ROUNDED,
+        border_style="cyan",
+        header_style="bold cyan",
+        expand=True,
+    )
+    table.add_column("#", justify="right", style="dim", no_wrap=True)
+    table.add_column("Command", overflow="fold")
+    table.add_column("Status", justify="right", no_wrap=True)
+
+    for index, command in enumerate(commands, start=1):
+        status = statuses[index - 1]
+        table.add_row(str(index), command, Text(status, style=_status_style(status)))
+
+    return table
+
+
+def _trim_output(output, max_lines=18):
+    lines = output.strip().splitlines()
+    if len(lines) <= max_lines:
+        return "\n".join(lines)
+    return "\n".join(["..."] + lines[-max_lines:])
+
+
+def _extract_git_upstream_hint(command, stderr):
+    if command.strip() != "git push":
+        return None
+    if "has no upstream branch" not in stderr:
+        return None
+
+    match = re.search(r"git push --set-upstream origin [^\s]+", stderr)
+    if not match:
+        return None
+
+    return f"Set the upstream once with: {match.group(0)}"
+
+
+def _failure_message(command, returncode, stderr):
+    hint = _extract_git_upstream_hint(command, stderr)
+    if hint:
+        return f"command failed with exit code {returncode}. {hint}"
+    return f"command failed with exit code {returncode}"
+
+
+def _show_failure_details(result):
+    data = result.get("data", {})
+    stderr = data.get("stderr", "").strip()
+    stdout = data.get("stdout", "").strip()
+    output = stderr or stdout or "No output captured."
+
+    body = Group(
+        Text(f"Command: {data.get('command', '-')}", style="bold"),
+        Text(f"Exit code: {data.get('returncode', '-')}", style="red"),
+        "",
+        Text(_trim_output(output)),
+    )
+    console.print(
+        Panel(
+            body,
+            title="Command failed",
+            border_style="red",
+            box=box.ROUNDED,
+        )
+    )
+
+
 def run_command(command):
-    completed = subprocess.run(command, shell=True)
+    completed = subprocess.run(
+        command,
+        shell=True,
+        capture_output=True,
+        text=True,
+    )
+
+    data = {
+        "command": command,
+        "returncode": completed.returncode,
+        "stdout": completed.stdout or "",
+        "stderr": completed.stderr or "",
+    }
+
     if completed.returncode != 0:
         return _result(
             1,
             "error",
-            f"command failed with exit code {completed.returncode}",
-            {"command": command, "returncode": completed.returncode},
+            _failure_message(command, completed.returncode, data["stderr"]),
+            data,
         )
 
-    return _result(0, "success", "command completed successfully", {"command": command})
+    return _result(0, "success", "command completed successfully", data)
 
 
 def run_workflow_commands(commands, dry_run=False):
@@ -56,18 +160,41 @@ def run_workflow_commands(commands, dry_run=False):
 
     dangerous_commands = [command for command in commands if is_dangerous_command(command)]
     if dangerous_commands:
-        console.print("[yellow]Dangerous command detected:[/yellow]")
+        console.print("[bold yellow]Dangerous command detected:[/bold yellow]")
         for command in dangerous_commands:
             console.print(f"  {command}")
 
         if not Confirm.ask("Continue anyway?", default=False):
             return _result(2, "warning", "workflow cancelled by user")
 
-    for command in commands:
-        console.print(f"[bold]$[/bold] {command}")
-        result = run_command(command)
-        if result["code"] != 0:
-            return result
+    statuses = [STATUS_PENDING for _ in commands]
+    failed_result = None
+
+    with Live(
+        _workflow_table(commands, statuses),
+        console=console,
+        refresh_per_second=8,
+    ) as live:
+        for index, command in enumerate(commands):
+            statuses[index] = STATUS_RUNNING
+            live.update(_workflow_table(commands, statuses))
+
+            result = run_command(command)
+            if result["code"] != 0:
+                statuses[index] = STATUS_FAILED
+                for remaining_index in range(index + 1, len(statuses)):
+                    statuses[remaining_index] = STATUS_SKIPPED
+                live.update(_workflow_table(commands, statuses))
+                failed_result = result
+                break
+
+            statuses[index] = STATUS_DONE
+            live.update(_workflow_table(commands, statuses))
+
+    if failed_result is not None:
+        console.print()
+        _show_failure_details(failed_result)
+        return failed_result
 
     return _result(
         0,

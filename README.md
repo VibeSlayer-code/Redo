@@ -60,6 +60,8 @@ Run it later:
 redo run ship
 ```
 
+Redo shows a live status table while commands run. Successful command output stays quiet by default; if a command fails, Redo stops the workflow and shows a focused error panel with the captured output.
+
 Preview it without executing commands:
 
 ```bash
@@ -155,6 +157,16 @@ format
 sudo
 git reset --hard
 ```
+
+## Git Push Tip
+
+If Git says the current branch has no upstream branch, run the command Git suggests once:
+
+```bash
+git push --set-upstream origin master
+```
+
+After that, a workflow containing `git push` can push normally.
 
 ## Roadmap
 

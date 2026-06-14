@@ -5,6 +5,13 @@ from rich.console import Console
 from modules import ui
 
 
+def test_ui_uses_calm_professional_palette():
+    assert "cyan" not in ui.BRAND
+    assert "magenta" not in ui.NUMBER
+    assert ui.PANEL_BORDER == "grey50"
+    assert ui.BRAND == "bold steel_blue"
+
+
 def capture_ui(monkeypatch):
     output = StringIO()
     monkeypatch.setattr(

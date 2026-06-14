@@ -9,23 +9,25 @@ from rich.theme import Theme
 
 theme = Theme(
     {
-        "brand": "bold cyan",
-        "muted": "dim",
-        "success": "bold green",
-        "warning": "bold yellow",
-        "error": "bold red",
-        "number": "bold magenta",
+        "brand": "bold steel_blue",
+        "muted": "grey58",
+        "success": "green4",
+        "warning": "dark_orange3",
+        "error": "red3",
+        "number": "grey82",
         "command": "bright_white",
     }
 )
 console = Console(theme=theme, highlight=False)
 
-BRAND = "bold cyan"
-MUTED = "dim"
-SUCCESS = "bold green"
-WARNING = "bold yellow"
-ERROR = "bold red"
-NUMBER = "bold magenta"
+BRAND = "bold steel_blue"
+MUTED = "grey58"
+SUCCESS = "green4"
+WARNING = "dark_orange3"
+ERROR = "red3"
+NUMBER = "grey82"
+PANEL_BORDER = "grey50"
+TABLE_BORDER = "grey46"
 
 
 def _status_line(label, message, style):
@@ -99,7 +101,7 @@ def show_workflows_table(workflows):
             Panel(
                 Text("No workflows saved yet.", style=MUTED),
                 title="Redo workflows",
-                border_style=WARNING,
+                border_style=PANEL_BORDER,
                 box=box.ROUNDED,
             )
         )
@@ -108,7 +110,7 @@ def show_workflows_table(workflows):
     table = Table(
         title="Redo workflows",
         box=box.ROUNDED,
-        border_style="cyan",
+        border_style=TABLE_BORDER,
         header_style=BRAND,
         show_lines=False,
     )
@@ -143,7 +145,7 @@ def show_workflow_details(name, workflow):
         Panel(
             metadata,
             title=f"Workflow: {name}",
-            border_style="cyan",
+            border_style=PANEL_BORDER,
             box=box.ROUNDED,
             expand=False,
         )
@@ -157,7 +159,7 @@ def show_commands(commands):
             Panel(
                 Text("No commands in this workflow.", style=MUTED),
                 title="Commands",
-                border_style=WARNING,
+                border_style=PANEL_BORDER,
                 box=box.ROUNDED,
             )
         )
@@ -210,7 +212,7 @@ def show_stats(workflows):
         Panel(
             summary,
             title="Redo stats",
-            border_style="cyan",
+            border_style=PANEL_BORDER,
             box=box.ROUNDED,
         )
     )
