@@ -7,6 +7,17 @@ from rich.text import Text
 from rich.theme import Theme
 
 
+ASCII_BANNER = r"""
+ /$$$$$$$                  /$$
+| $$__  $$                | $$
+| $$  \ $$  /$$$$$$   /$$$$$$$  /$$$$$$
+| $$$$$$$/ /$$__  $$ /$$__  $$ /$$__  $$
+| $$__  $$| $$$$$$$$| $$  | $$| $$  \ $$
+| $$  \ $$| $$_____/| $$  | $$| $$  | $$
+| $$  | $$|  $$$$$$$|  $$$$$$$|  $$$$$$/
+|__/  |__/ \_______/ \_______/ \______/
+""".strip("\n")
+
 theme = Theme(
     {
         "brand": "bold steel_blue",
@@ -28,6 +39,37 @@ ERROR = "red3"
 NUMBER = "grey82"
 PANEL_BORDER = "grey50"
 TABLE_BORDER = "grey46"
+BANNER_START = "#6f86a8"
+BANNER_END = "#b39ddb"
+
+
+def _hex_to_rgb(value):
+    value = value.lstrip("#")
+    return tuple(int(value[index : index + 2], 16) for index in (0, 2, 4))
+
+
+def _rgb_to_hex(rgb):
+    return "#{:02x}{:02x}{:02x}".format(*rgb)
+
+
+def _blend(start, end, ratio):
+    return tuple(round(start[index] + (end[index] - start[index]) * ratio) for index in range(3))
+
+
+def _gradient_text(text, start_color=BANNER_START, end_color=BANNER_END):
+    start = _hex_to_rgb(start_color)
+    end = _hex_to_rgb(end_color)
+    lines = text.splitlines()
+    total = max(len(lines) - 1, 1)
+    output = Text()
+
+    for index, line in enumerate(lines):
+        color = _rgb_to_hex(_blend(start, end, index / total))
+        output.append(line, style=f"bold {color}")
+        if index != len(lines) - 1:
+            output.append("\n")
+
+    return output
 
 
 def _status_line(label, message, style):
@@ -83,16 +125,85 @@ def print_warning(message):
 
 
 def show_banner():
+    console.print(_gradient_text(ASCII_BANNER))
+    console.print(Text("Bookmarks for terminal workflows.", style=MUTED))
+    console.print(Text("Run redo --help for commands or redo --info for project details.", style=MUTED))
+
+
+def show_info(version, credit):
+    metadata = _metadata_table(
+        [
+            ("Version", version),
+            ("Credit", credit),
+            ("Storage", "C:/redo/files/workflows.json"),
+            ("Guide", "redo guide"),
+        ]
+    )
+
+    console.print(_gradient_text(ASCII_BANNER))
     console.print(
-        Panel.fit(
-            Text.assemble(
-                ("Redo\n", BRAND),
-                ("Bookmarks for terminal workflows.", MUTED),
-            ),
-            border_style=BRAND,
+        Panel(
+            metadata,
+            title="Redo info",
+            border_style=PANEL_BORDER,
             box=box.ROUNDED,
         )
     )
+
+
+def show_guide():
+    intro = Text.assemble(
+        ("Redo guide\n", BRAND),
+        ("Save repeated terminal workflows once. Run them again with one command.", MUTED),
+    )
+
+    basics = Table.grid(padding=(0, 2))
+    basics.add_column(style=MUTED, no_wrap=True)
+    basics.add_column()
+    basics.add_row("Create", "redo new ship")
+    basics.add_row("Run", "redo run ship")
+    basics.add_row("Preview", "redo run ship --dry")
+    basics.add_row("Inspect", "redo list  |  redo show ship")
+
+    example = Syntax(
+        'Description: Commit and push code\n'
+        'Command: git add .\n'
+        'Command: git commit -m "{message}"\n'
+        'Command: git push\n'
+        'Command: :done',
+        "text",
+        theme="ansi_dark",
+        word_wrap=True,
+    )
+
+    placeholders = Table(
+        title="Placeholders",
+        box=box.ROUNDED,
+        border_style=TABLE_BORDER,
+        header_style=BRAND,
+    )
+    placeholders.add_column("Pattern", no_wrap=True)
+    placeholders.add_column("What happens")
+    placeholders.add_row("{message}", "Redo asks once, then inserts the value everywhere.")
+    placeholders.add_row("{project_name}", "Names must use letters, numbers, and underscores.")
+
+    warnings = Table(
+        title="Warnings",
+        box=box.ROUNDED,
+        border_style=TABLE_BORDER,
+        header_style=BRAND,
+    )
+    warnings.add_column("Tip", no_wrap=True)
+    warnings.add_column("Why it matters")
+    warnings.add_row("One command per prompt", "Do not separate commands with commas.")
+    warnings.add_row('Use git commit -m "{message}"', "Git needs -m for commit messages.")
+    warnings.add_row("Use --dry first", "Preview before running risky workflows.")
+
+    console.print(Panel(intro, border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(basics, title="Core commands", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(example, title="Example workflow", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(placeholders)
+    console.print(warnings)
 
 
 def show_workflows_table(workflows):

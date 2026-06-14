@@ -1,12 +1,15 @@
 import typer
-from rich.prompt import Prompt
+from rich.prompt import Confirm, Prompt
 
 from modules import placeholders, runner, storage, ui
 
 
+VERSION = "0.1.0"
+CREDIT = "credit-vibeslayer"
+
 app = typer.Typer(
     help="Redo saves repeated terminal workflows and runs them again with one command.",
-    no_args_is_help=True,
+    no_args_is_help=False,
 )
 
 
@@ -17,6 +20,33 @@ def _print_result(result):
         ui.print_warning(result["message"])
     else:
         ui.print_error(result["message"])
+
+
+def _offer_first_run_guide():
+    if not storage.should_offer_first_run_guide():
+        return
+
+    if Confirm.ask("First time using Redo? See the quick guide first?", default=True):
+        ui.show_guide()
+
+    result = storage.mark_first_run_guide_seen()
+    if result["code"] == 1:
+        ui.print_warning(result["message"])
+
+
+@app.callback(invoke_without_command=True)
+def root(
+    ctx: typer.Context,
+    info: bool = typer.Option(False, "--info", help="Show Redo version and credits."),
+):
+    """Bookmarks for terminal workflows."""
+    if info:
+        ui.show_info(VERSION, CREDIT)
+        raise typer.Exit(code=0)
+
+    if ctx.invoked_subcommand is None:
+        ui.show_banner()
+        raise typer.Exit(code=0)
 
 
 @app.command("init")
@@ -30,6 +60,7 @@ def init():
 def new_workflow(name: str = typer.Argument(..., help="Workflow name to create.")):
     """Create a reusable workflow."""
     storage.initialize_file()
+    _offer_first_run_guide()
     description = Prompt.ask("Description")
     commands = []
 
@@ -86,6 +117,25 @@ def delete_workflow(name: str = typer.Argument(..., help="Workflow name to delet
     """Delete a saved workflow."""
     result = storage.delete_workflow(name)
     _print_result(result)
+
+
+@app.command("clearhistory")
+def clearhistory(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Clear without asking for confirmation."),
+):
+    """Clear every saved workflow from Redo storage."""
+    if not yes and not Confirm.ask("Clear all saved workflows?", default=False):
+        ui.print_warning("clear history cancelled")
+        raise typer.Exit(code=0)
+
+    result = storage.clear_workflows()
+    _print_result(result)
+
+
+@app.command("guide")
+def guide():
+    """Show the Redo quick-start guide."""
+    ui.show_guide()
 
 
 @app.command("copy")

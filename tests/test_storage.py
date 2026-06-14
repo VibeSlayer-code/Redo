@@ -130,6 +130,27 @@ def test_export_and_import_workflows(tmp_path, monkeypatch):
     assert storage.get_workflow("ship")["data"]["commands"] == ["git push"]
 
 
+def test_clear_workflows_resets_storage(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    storage.add_workflow("ship", "Commit and push", ["git push"])
+
+    result = storage.clear_workflows()
+
+    assert result["status"] == "success"
+    assert storage.load_workflows()["data"] == {}
+
+
+def test_first_run_guide_state_lives_next_to_workflows(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+
+    assert storage.should_offer_first_run_guide() is True
+    result = storage.mark_first_run_guide_seen()
+
+    assert result["status"] == "success"
+    assert storage.should_offer_first_run_guide() is False
+    assert (tmp_path / "redo_state.json").exists()
+
+
 def test_malformed_json_returns_warning(tmp_path, monkeypatch):
     data_file = tmp_path / "workflow.json"
     data_file.write_text("{bad json", encoding="utf-8")

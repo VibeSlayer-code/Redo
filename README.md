@@ -26,7 +26,10 @@ You can run Redo locally with either form:
 ```bash
 python main.py --help
 redo --help
+redo --info
 ```
+
+Running `redo` with no command shows the Redo ASCII banner. Running `redo --info` shows the banner, version, storage path, and credit.
 
 Redo stores its workflow data in:
 
@@ -35,6 +38,12 @@ C:/redo/files/workflows.json
 ```
 
 Run `redo init` to create the folder and file explicitly, or let Redo create them the first time it needs storage.
+
+The first time you run `redo new`, Redo offers to show a quick guide. You can open that guide anytime with:
+
+```bash
+redo guide
+```
 
 ## Usage
 
@@ -78,6 +87,7 @@ redo show <name>
 redo run <name>
 redo run <name> --dry
 redo delete <name>
+redo clearhistory
 redo stats
 ```
 
@@ -93,11 +103,14 @@ redo import workflows-backup.json
 redo import workflows-backup.json --replace
 redo doctor
 redo autofix
+redo guide
 ```
 
 `redo doctor` checks the workflow file, counts saved commands/placeholders, and flags risky commands before they surprise you later.
 
 `redo autofix` repairs common storage problems: missing files, blank files, malformed JSON, and workflow entries with missing fields. If JSON is malformed, Redo saves a backup as `C:/redo/files/workflows.broken.json` before resetting the main file.
+
+`redo clearhistory` clears every saved workflow from `C:/redo/files/workflows.json`. Use `redo clearhistory --yes` to skip the confirmation prompt.
 
 ## Placeholders
 

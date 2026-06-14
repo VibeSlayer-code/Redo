@@ -5,6 +5,7 @@ from pathlib import Path
 
 DATA_DIR = Path("C:/redo/files")
 DATA_FILE = DATA_DIR / "workflows.json"
+STATE_FILE_NAME = "redo_state.json"
 
 
 def _result(code, status, message, data=None):
@@ -33,6 +34,10 @@ def initialize_file():
 
 def _broken_backup_file():
     return DATA_FILE.with_name(f"{DATA_FILE.stem}.broken.json")
+
+
+def _state_file():
+    return DATA_FILE.parent / STATE_FILE_NAME
 
 
 def _normalize_workflow(name, workflow):
@@ -147,6 +152,48 @@ def save_workflows(workflows):
         return _result(1, "error", f"could not save workflows: {error}")
 
     return _result(0, "success", "workflows saved successfully")
+
+
+def clear_workflows():
+    save_result = save_workflows({})
+    if save_result["code"] != 0:
+        return save_result
+
+    return _result(0, "success", "workflow history cleared")
+
+
+def should_offer_first_run_guide():
+    state_file = _state_file()
+    if not state_file.exists():
+        return True
+
+    try:
+        with state_file.open("r", encoding="utf-8") as file:
+            state = json.load(file)
+    except (json.JSONDecodeError, OSError):
+        return True
+
+    return not bool(state.get("first_run_guide_seen", False))
+
+
+def mark_first_run_guide_seen():
+    state_file = _state_file()
+
+    try:
+        state_file.parent.mkdir(parents=True, exist_ok=True)
+        state = {}
+        if state_file.exists() and state_file.read_text(encoding="utf-8").strip():
+            with state_file.open("r", encoding="utf-8") as file:
+                state = json.load(file)
+
+        state["first_run_guide_seen"] = True
+        with state_file.open("w", encoding="utf-8") as file:
+            json.dump(state, file, indent=2)
+            file.write("\n")
+    except (json.JSONDecodeError, OSError) as error:
+        return _result(1, "error", f"could not update first-run guide state: {error}")
+
+    return _result(0, "success", "first-run guide state updated")
 
 
 def add_workflow(name, description, commands):
@@ -346,4 +393,3 @@ def import_workflows(source, replace=False):
         message += f", skipped {skipped_count}"
 
     return _result(0, "success", message)
-

@@ -4,6 +4,27 @@ import main
 from modules import storage
 
 
+def test_root_command_shows_ascii_banner_instead_of_help_description():
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, [])
+
+    assert result.exit_code == 0
+    assert "/$$$$$$$" in result.output
+    assert "Usage:" not in result.output
+
+
+def test_info_option_shows_banner_version_and_credit():
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["--info"])
+
+    assert result.exit_code == 0
+    assert "/$$$$$$$" in result.output
+    assert "Version" in result.output
+    assert "credit-vibeslayer" in result.output
+
+
 def test_list_empty_workflows(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
     cli = CliRunner()
@@ -73,3 +94,58 @@ def test_autofix_command_repairs_storage_file(tmp_path, monkeypatch):
     assert result.exit_code == 0
     assert "backed up malformed workflow file" in result.output
     assert storage.load_workflows()["data"] == {}
+
+
+def test_clearhistory_command_resets_workflows(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    storage.add_workflow("git", "for pushing", ["git push"])
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["clearhistory", "--yes"])
+
+    assert result.exit_code == 0
+    assert "workflow history cleared" in result.output
+    assert storage.load_workflows()["data"] == {}
+
+
+def test_guide_command_can_be_viewed_anytime(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["guide"])
+
+    assert result.exit_code == 0
+    assert "Redo guide" in result.output
+    assert "{message}" in result.output
+    assert "redo run ship" in result.output
+
+
+def test_new_workflow_first_run_can_show_guide(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    cli = CliRunner()
+
+    result = cli.invoke(
+        main.app,
+        ["new", "ship"],
+        input="y\nCommit and push\ngit add .\ngit commit -m \"{message}\"\ngit push\n:done\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Redo guide" in result.output
+    assert "workflow saved successfully" in result.output
+    assert storage.should_offer_first_run_guide() is False
+
+
+def test_new_workflow_first_run_can_skip_guide(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    cli = CliRunner()
+
+    result = cli.invoke(
+        main.app,
+        ["new", "ship"],
+        input="n\nCommit and push\ngit status\n:done\n",
+    )
+
+    assert result.exit_code == 0
+    assert "Redo guide" not in result.output
+    assert storage.should_offer_first_run_guide() is False
