@@ -3,7 +3,7 @@
 A CLI tool for saving repeated terminal workflows and running them again with one command.
 
 <p align="center">
-  <img src="assets/banner.png" alt="Redo banner" width="100%" />
+  <img src="https://i.guns.lol/CLEHWv.png" alt="Redo banner" width="100%" />
 </p>
 
 <p align="center">
@@ -64,7 +64,7 @@ Think of Redo as **bookmarks for terminal workflows**.
 ## Demo Flow
 
 <p align="center">
-  <img src="assets/demo-run.png" alt="Redo demo running workflow" width="85%" />
+  <img src="https://i.guns.lol/CLTfIJ.png" alt="Redo demo running workflow" width="85%" />
 </p>
 
 ```bash
@@ -75,9 +75,6 @@ redo run ship --dry
 redo run ship
 redo stats
 ```
-
-> Add a real screenshot or GIF at `assets/demo-run.png`.
-> Best shot: the live workflow status table while `redo run ship` is running.
 
 ---
 
@@ -243,52 +240,6 @@ Then runs:
 git add .
 git commit -m "fixed clumsy ui"
 git push
-```
-
----
-
-## Screenshots
-
-<p align="center">
-  <img src="assets/list-command.png" alt="Redo list command" width="48%" />
-  <img src="assets/dry-run.png" alt="Redo dry run preview" width="48%" />
-</p>
-
-<p align="center">
-  <img src="assets/error-panel.png" alt="Redo focused error panel" width="85%" />
-</p>
-
-Suggested files to add:
-
-```txt
-assets/banner.png
-assets/demo-run.png
-assets/list-command.png
-assets/dry-run.png
-assets/error-panel.png
-```
-
-For a CLI project, a short terminal GIF is the strongest visual. Recommended GIF:
-
-```txt
-assets/demo.gif
-```
-
-Show this sequence:
-
-```bash
-redo new ship
-redo list
-redo run ship --dry
-redo run ship
-```
-
-Then embed it near the top:
-
-```md
-<p align="center">
-  <img src="assets/demo.gif" alt="Redo terminal demo" width="85%" />
-</p>
 ```
 
 ---
