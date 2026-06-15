@@ -1,7 +1,11 @@
+import time
+
 from rich import box
 from rich.align import Align
 from rich.console import Console, Group
+from rich.live import Live
 from rich.panel import Panel
+from rich.spinner import Spinner
 from rich.syntax import Syntax
 from rich.table import Table
 from rich.text import Text
@@ -102,6 +106,39 @@ def _format_seconds(seconds):
     return " ".join(parts)
 
 
+def _estimate_command_saved_seconds(command):
+    normalized = " ".join(command.lower().split())
+    seconds = 6
+
+    if normalized.startswith(("echo ", "pwd", "ls", "dir")):
+        seconds = 4
+    elif "npm install" in normalized or "pnpm install" in normalized or "yarn install" in normalized:
+        seconds = 34
+    elif "pip install" in normalized or "poetry install" in normalized:
+        seconds = 30
+    elif normalized.startswith("git commit"):
+        seconds = 10
+    elif normalized.startswith(("git push", "git pull", "git fetch")):
+        seconds = 10
+    elif any(tool in normalized for tool in ("docker ", "pytest", "npm run", "pnpm run", "yarn run")):
+        seconds = 18
+
+    if "{" in command and "}" in command:
+        seconds += 12
+    if len(command) > 60:
+        seconds += 6
+    if any(separator in command for separator in ("&&", "||", "|", ";")):
+        seconds += 5
+
+    return min(seconds, 45)
+
+
+def _estimate_workflow_saved_seconds(workflow):
+    runs = int(workflow.get("runs", 0))
+    commands = workflow.get("commands", [])
+    return sum(_estimate_command_saved_seconds(command) for command in commands) * runs
+
+
 def _metadata_table(rows):
     table = Table.grid(padding=(0, 2))
     table.add_column(style=MUTED, no_wrap=True)
@@ -131,7 +168,34 @@ def show_banner():
     console.print(Align.center(Text("Run redo --help for commands or redo --info.", style=MUTED)))
 
 
-def show_info(version, credit):
+def _show_info_animation():
+    if not console.is_terminal:
+        return
+
+    steps = ["checking storage", "loading commands", "warming shortcuts", "ready"]
+    with Live(console=console, refresh_per_second=12, transient=True) as live:
+        for step in steps:
+            live.update(
+                Panel(
+                    Spinner("line", text=Text(f"Redo launch check: {step}", style=BRAND), style=BRAND),
+                    border_style=PANEL_BORDER,
+                    box=box.ROUNDED,
+                )
+            )
+            time.sleep(0.16)
+
+
+def show_info(version, credit, animated=False):
+    if animated:
+        _show_info_animation()
+
+    launch = Table.grid(padding=(0, 2))
+    launch.add_column(style=SUCCESS, no_wrap=True)
+    launch.add_column()
+    launch.add_row("Storage", "Ready")
+    launch.add_row("Commands", "Ready")
+    launch.add_row("Status", "Ready to redo")
+
     metadata = _metadata_table(
         [
             ("Version", version),
@@ -144,7 +208,13 @@ def show_info(version, credit):
     console.print(Align.center(_gradient_text(ASCII_BANNER)))
     console.print(
         Panel(
-            metadata,
+            Group(
+                Text("Ready to turn repeated terminal work into one command.", style=MUTED),
+                "",
+                Panel(launch, title="Launch check", border_style=SUCCESS, box=box.ROUNDED),
+                "",
+                metadata,
+            ),
             title="Redo info",
             border_style=PANEL_BORDER,
             box=box.ROUNDED,
@@ -336,7 +406,7 @@ def show_stats(workflows):
         len(workflow.get("commands", [])) * int(workflow.get("runs", 0))
         for workflow in workflows.values()
     )
-    estimated_seconds_saved = total_commands_run * 5
+    estimated_seconds_saved = sum(_estimate_workflow_saved_seconds(workflow) for workflow in workflows.values())
     most_used = "-"
 
     if workflows:

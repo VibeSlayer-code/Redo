@@ -37,10 +37,12 @@ def test_runner_workflow_view_uses_loader_status_message():
     output = StringIO()
     test_console = Console(file=output, force_terminal=False, width=100, color_system=None)
 
-    test_console.print(runner._workflow_view(["echo ok"], [runner.STATUS_RUNNING]))
+    test_console.print(runner._workflow_view(["echo ok"], [runner.STATUS_RUNNING], [1.25], current_index=0))
 
     rendered = output.getvalue()
     assert "Your workflow is running, check the status" in rendered
+    assert "Step 1 of 1" in rendered
+    assert "1.2s" in rendered
     assert "Running your workflow" not in rendered
     assert runner.SPINNER_NAME == "line"
 

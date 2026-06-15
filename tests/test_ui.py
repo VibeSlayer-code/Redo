@@ -74,6 +74,26 @@ def test_workflow_details_are_grouped_with_named_header(monkeypatch):
     assert "git push" in rendered
 
 
+def test_info_screen_has_launch_check_and_credit(monkeypatch):
+    output = capture_ui(monkeypatch)
+
+    ui.show_info("0.1.0", "credit-vibeslayer", animated=False)
+
+    rendered = output.getvalue()
+    assert "/$$$$$$$" in rendered
+    assert "Launch check" in rendered
+    assert "Ready to redo" in rendered
+    assert "credit-vibeslayer" in rendered
+
+
+def test_estimated_time_saved_weights_developer_commands():
+    assert ui._estimate_command_saved_seconds("npm install") > ui._estimate_command_saved_seconds("echo ok")
+    assert ui._estimate_command_saved_seconds('git commit -m "{message}"') > ui._estimate_command_saved_seconds("git add .")
+    assert ui._estimate_workflow_saved_seconds(
+        {"commands": ["npm install", 'git commit -m "{message}"'], "runs": 2}
+    ) == 112
+
+
 def test_stats_formats_estimated_time_saved(monkeypatch):
     output = capture_ui(monkeypatch)
 
@@ -90,7 +110,7 @@ def test_stats_formats_estimated_time_saved(monkeypatch):
     rendered = output.getvalue()
     assert "Redo stats" in rendered
     assert "Estimated time saved" in rendered
-    assert "1m 15s" in rendered
+    assert "2m 10s" in rendered
 
 
 def test_doctor_report_summarizes_health(monkeypatch):

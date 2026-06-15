@@ -1,5 +1,6 @@
 import re
 import subprocess
+import time
 
 from rich import box
 from rich.console import Console, Group
@@ -88,7 +89,16 @@ def _status_style(status):
     return "dim"
 
 
-def _workflow_table(commands, statuses):
+def _format_duration(seconds):
+    if seconds is None:
+        return "-"
+    if seconds < 1:
+        return f"{seconds * 1000:.0f}ms"
+    return f"{seconds:.1f}s"
+
+
+def _workflow_table(commands, statuses, durations=None):
+    durations = durations or [None for _ in commands]
     table = Table(
         box=box.ROUNDED,
         border_style="grey46",
@@ -97,23 +107,46 @@ def _workflow_table(commands, statuses):
     )
     table.add_column("#", justify="right", style="dim", no_wrap=True)
     table.add_column("Command", overflow="fold")
+    table.add_column("Time", justify="right", no_wrap=True)
     table.add_column("Status", justify="right", no_wrap=True)
 
     for index, command in enumerate(commands, start=1):
         status = statuses[index - 1]
-        table.add_row(str(index), command, Text(status, style=_status_style(status)))
+        table.add_row(
+            str(index),
+            command,
+            Text(_format_duration(durations[index - 1]), style="dim"),
+            Text(status, style=_status_style(status)),
+        )
 
     return table
 
 
-def _workflow_view(commands, statuses):
+def _current_step_text(commands, statuses, current_index=None):
+    total = len(commands)
+    if total == 0:
+        return Text("Step 0 of 0", style="dim")
+
+    if current_index is None:
+        try:
+            current_index = statuses.index(STATUS_RUNNING)
+        except ValueError:
+            completed = sum(status in {STATUS_DONE, STATUS_FAILED, STATUS_SKIPPED} for status in statuses)
+            current_index = max(0, min(completed - 1, total - 1))
+
+    step = max(1, min(current_index + 1, total))
+    done = sum(status == STATUS_DONE for status in statuses)
+    return Text(f"Step {step} of {total}   Completed {done}/{total}", style="dim")
+
+
+def _workflow_view(commands, statuses, durations=None, current_index=None):
     loader = Spinner(
         SPINNER_NAME,
         text=Text("Your workflow is running, check the status.", style="bold steel_blue"),
         style="steel_blue",
     )
     return Panel(
-        Group(loader, "", _workflow_table(commands, statuses)),
+        Group(loader, _current_step_text(commands, statuses, current_index), "", _workflow_table(commands, statuses, durations)),
         title="Workflow status",
         border_style="grey46",
         box=box.ROUNDED,
@@ -179,6 +212,7 @@ def _show_failure_details(result):
 
 
 def run_command(command):
+    started_at = time.perf_counter()
     try:
         completed = subprocess.run(
             command,
@@ -194,6 +228,7 @@ def run_command(command):
             "stdout": _stringify_output(error.stdout),
             "stderr": _stringify_output(error.stderr),
             "timeout": COMMAND_TIMEOUT_SECONDS,
+            "duration_seconds": time.perf_counter() - started_at,
         }
         return _result(1, "error", f"command timed out after {COMMAND_TIMEOUT_SECONDS} seconds", data)
     except OSError as error:
@@ -202,6 +237,7 @@ def run_command(command):
             "returncode": None,
             "stdout": "",
             "stderr": str(error),
+            "duration_seconds": time.perf_counter() - started_at,
         }
         return _result(1, "error", f"could not run command: {error}", data)
 
@@ -210,6 +246,7 @@ def run_command(command):
         "returncode": completed.returncode,
         "stdout": completed.stdout or "",
         "stderr": completed.stderr or "",
+        "duration_seconds": time.perf_counter() - started_at,
     }
 
     if completed.returncode != 0:
@@ -242,28 +279,30 @@ def run_workflow_commands(commands, dry_run=False):
             return _result(2, "warning", "workflow cancelled by user")
 
     statuses = [STATUS_PENDING for _ in commands]
+    durations = [None for _ in commands]
     failed_result = None
 
     with Live(
-        _workflow_view(commands, statuses),
+        _workflow_view(commands, statuses, durations),
         console=console,
         refresh_per_second=8,
     ) as live:
         for index, command in enumerate(commands):
             statuses[index] = STATUS_RUNNING
-            live.update(_workflow_view(commands, statuses))
+            live.update(_workflow_view(commands, statuses, durations, current_index=index))
 
             result = run_command(command)
+            durations[index] = result.get("data", {}).get("duration_seconds")
             if result["code"] != 0:
                 statuses[index] = STATUS_FAILED
                 for remaining_index in range(index + 1, len(statuses)):
                     statuses[remaining_index] = STATUS_SKIPPED
-                live.update(_workflow_view(commands, statuses))
+                live.update(_workflow_view(commands, statuses, durations, current_index=index))
                 failed_result = result
                 break
 
             statuses[index] = STATUS_DONE
-            live.update(_workflow_view(commands, statuses))
+            live.update(_workflow_view(commands, statuses, durations, current_index=index))
 
     if failed_result is not None:
         console.print()
@@ -274,5 +313,5 @@ def run_workflow_commands(commands, dry_run=False):
         0,
         "success",
         "workflow completed successfully",
-        {"dry_run": False, "commands": commands},
+        {"dry_run": False, "commands": commands, "durations": durations},
     )

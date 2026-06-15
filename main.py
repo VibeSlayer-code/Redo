@@ -60,7 +60,7 @@ def root(
         raise typer.Exit(code=0)
 
     if info:
-        ui.show_info(VERSION, CREDIT)
+        ui.show_info(VERSION, CREDIT, animated=True)
         raise typer.Exit(code=0)
 
     if ctx.invoked_subcommand is None:
