@@ -1,4 +1,4 @@
-# Redo
+# Redo V0.1.4 
 
 A CLI tool for saving repeated terminal workflows and running them again with one command.
 
