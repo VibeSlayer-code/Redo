@@ -14,17 +14,17 @@ from rich.text import Text
 console = Console(highlight=False)
 
 DANGEROUS_PATTERNS = [
-    r"\brm\s+-[a-z]*r[a-z]*f\b",
-    r"\brm\s+-[a-z]*f[a-z]*r\b",
-    r"\bdel\s+/s\b",
+    r"\bdel\s+/(?:s|f)\b.*\s+/(?:s|f)\b",
     r"\brd\s+/s\b",
     r"\brmdir\s+/s\b",
     r"\bremove-item\b(?=.*-recurse\b)(?=.*-force\b)",
     r"\bformat\b",
+    r"\bmkfs(?:\.[a-z0-9]+)?\b",
+    r"\bdd\s+.*\bof=",
     r"\bsudo\b",
     r"\bgit\s+reset\s+--hard\b",
 ]
-
+COMMAND_TIMEOUT_SECONDS = 1800
 STATUS_PENDING = "Pending"
 STATUS_RUNNING = "Running"
 STATUS_DONE = "Done"
@@ -45,8 +45,35 @@ def _result(code, status, message, data=None):
 
 
 def is_dangerous_command(command):
-    normalized = command.strip().lower()
-    return any(re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in DANGEROUS_PATTERNS)
+    normalized = " ".join(command.strip().lower().split())
+    return _is_dangerous_rm_command(normalized) or any(
+        re.search(pattern, normalized, flags=re.IGNORECASE) for pattern in DANGEROUS_PATTERNS
+    )
+
+
+def _is_dangerous_rm_command(command):
+    segments = re.split(r"\s*(?:&&|\|\||[;|])\s*", command)
+    return any(_is_dangerous_rm_segment(segment) for segment in segments)
+
+
+def _is_dangerous_rm_segment(command):
+    parts = command.strip().split()
+    if not parts or parts[0] != "rm":
+        return False
+
+    has_recursive = False
+    has_force = False
+    for part in parts[1:]:
+        if part in {"--recursive", "--dir"}:
+            has_recursive = True
+        elif part == "--force":
+            has_force = True
+        elif part.startswith("-") and not part.startswith("--"):
+            flags = part[1:]
+            has_recursive = has_recursive or "r" in flags
+            has_force = has_force or "f" in flags
+
+    return has_recursive and has_force
 
 
 def _status_style(status):
@@ -94,10 +121,19 @@ def _workflow_view(commands, statuses):
 
 
 def _trim_output(output, max_lines=18):
+    output = _stringify_output(output)
     lines = output.strip().splitlines()
     if len(lines) <= max_lines:
         return "\n".join(lines)
     return "\n".join(["..."] + lines[-max_lines:])
+
+
+def _stringify_output(output):
+    if output is None:
+        return ""
+    if isinstance(output, bytes):
+        return output.decode(errors="replace")
+    return str(output)
 
 
 def _extract_git_upstream_hint(command, stderr):
@@ -143,12 +179,31 @@ def _show_failure_details(result):
 
 
 def run_command(command):
-    completed = subprocess.run(
-        command,
-        shell=True,
-        capture_output=True,
-        text=True,
-    )
+    try:
+        completed = subprocess.run(
+            command,
+            shell=True,
+            capture_output=True,
+            text=True,
+            timeout=COMMAND_TIMEOUT_SECONDS,
+        )
+    except subprocess.TimeoutExpired as error:
+        data = {
+            "command": command,
+            "returncode": None,
+            "stdout": _stringify_output(error.stdout),
+            "stderr": _stringify_output(error.stderr),
+            "timeout": COMMAND_TIMEOUT_SECONDS,
+        }
+        return _result(1, "error", f"command timed out after {COMMAND_TIMEOUT_SECONDS} seconds", data)
+    except OSError as error:
+        data = {
+            "command": command,
+            "returncode": None,
+            "stdout": "",
+            "stderr": str(error),
+        }
+        return _result(1, "error", f"could not run command: {error}", data)
 
     data = {
         "command": command,

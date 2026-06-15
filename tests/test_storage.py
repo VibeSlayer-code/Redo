@@ -4,8 +4,16 @@ from pathlib import Path
 from modules import storage
 
 
-def test_default_storage_file_lives_under_redo_files():
-    assert storage.DATA_FILE == Path("C:/redo/files/workflows.json")
+def test_default_storage_file_lives_under_user_data_dir(monkeypatch):
+    monkeypatch.setenv("APPDATA", "C:/Users/Test/AppData/Roaming")
+
+    assert storage._user_data_dir() == Path("C:/Users/Test/AppData/Roaming/Redo")
+
+
+def test_storage_dir_can_be_overridden(monkeypatch):
+    monkeypatch.setenv("REDO_DATA_DIR", "C:/custom/redo")
+
+    assert storage._user_data_dir() == Path("C:/custom/redo")
 
 
 def test_initialize_file_creates_empty_json(tmp_path, monkeypatch):
@@ -88,6 +96,20 @@ def test_increment_runs_updates_count_and_message(tmp_path, monkeypatch):
         "status": "success",
         "message": "workflow run count updated",
     }
+    assert storage.get_workflow("test")["data"]["runs"] == 1
+
+
+def test_increment_runs_recovers_bad_run_count(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflow.json"
+    data_file.write_text(
+        json.dumps({"test": {"description": "", "commands": ["pytest"], "runs": "bad"}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+
+    result = storage.increment_runs("test")
+
+    assert result["code"] == 0
     assert storage.get_workflow("test")["data"]["runs"] == 1
 
 
@@ -186,6 +208,26 @@ def test_clear_workflows_resets_storage(tmp_path, monkeypatch):
     assert storage.load_workflows()["data"] == {}
 
 
+def test_mutating_operations_refuse_malformed_storage(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflows.json"
+    import_file = tmp_path / "import.json"
+    import_file.write_text(
+        json.dumps({"ship": {"description": "", "commands": ["git push"], "runs": 0}}),
+        encoding="utf-8",
+    )
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+
+    for operation in (
+        lambda: storage.add_workflow("ship", "Commit and push", ["git push"]),
+        lambda: storage.clear_workflows(),
+        lambda: storage.import_workflows(import_file),
+    ):
+        data_file.write_text("{bad json", encoding="utf-8")
+        result = operation()
+        assert result["code"] == 1
+        assert data_file.read_text(encoding="utf-8") == "{bad json"
+
+
 def test_first_run_guide_state_lives_next_to_workflows(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
 
@@ -232,6 +274,21 @@ def test_autofix_backs_up_malformed_json_and_resets_file(tmp_path, monkeypatch):
     assert backup_file.exists()
     assert json.loads(data_file.read_text(encoding="utf-8")) == {}
     assert "backed up malformed workflow file" in result["data"]["fixes"]
+
+
+def test_autofix_does_not_overwrite_existing_broken_backup(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflows.json"
+    first_backup = tmp_path / "workflows.broken.json"
+    data_file.write_text("{new bad json", encoding="utf-8")
+    first_backup.write_text("old backup", encoding="utf-8")
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+
+    result = storage.autofix_storage()
+
+    second_backup = tmp_path / "workflows.broken.1.json"
+    assert result["code"] == 0
+    assert first_backup.read_text(encoding="utf-8") == "old backup"
+    assert second_backup.read_text(encoding="utf-8") == "{new bad json"
 
 
 def test_autofix_normalizes_invalid_workflow_entries(tmp_path, monkeypatch):

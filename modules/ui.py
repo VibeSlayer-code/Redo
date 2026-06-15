@@ -135,7 +135,7 @@ def show_info(version, credit):
         [
             ("Version", version),
             ("Credit", credit),
-            ("Storage", "C:/redo/files/workflows.json"),
+            ("Storage", "redo path"),
             ("Guide", "redo guide"),
         ]
     )

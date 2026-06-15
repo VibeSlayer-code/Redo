@@ -24,6 +24,18 @@ def _print_result(result):
         ui.print_error(result["message"])
 
 
+def _exit_for_result(result):
+    return 0 if result["code"] == 0 else 1
+
+
+def _failure_exit_for_result(result):
+    return 1 if result["code"] == 1 else 0
+
+
+def _raise_for_result(result):
+    raise typer.Exit(code=_exit_for_result(result))
+
+
 def _offer_first_run_guide():
     if not storage.should_offer_first_run_guide():
         return
@@ -32,7 +44,7 @@ def _offer_first_run_guide():
         ui.show_guide()
 
     result = storage.mark_first_run_guide_seen()
-    if result["code"] == 1:
+    if result["code"] != 0:
         ui.print_warning(result["message"])
 
 
@@ -58,9 +70,10 @@ def root(
 
 @app.command("init", context_settings=COMMAND_CONTEXT)
 def init():
-    """Create C:/redo/files/workflows.json if needed."""
+    """Create Redo workflow storage if needed."""
     result = storage.initialize_file()
     _print_result(result)
+    raise typer.Exit(code=_failure_exit_for_result(result))
 
 
 @app.command("new", context_settings=COMMAND_CONTEXT)
@@ -69,9 +82,13 @@ def new_workflow(name: str = typer.Argument(..., help="Workflow name to create."
     name_result = storage.validate_workflow_name(name)
     if name_result["code"] != 0:
         _print_result(name_result)
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=1)
 
-    storage.initialize_file()
+    storage_result = storage.load_workflows()
+    if storage_result["code"] != 0:
+        _print_result(storage_result)
+        raise typer.Exit(code=1)
+
     _offer_first_run_guide()
     description = Prompt.ask("Description")
     commands = []
@@ -85,18 +102,19 @@ def new_workflow(name: str = typer.Argument(..., help="Workflow name to create."
 
     if not commands:
         ui.print_warning("No commands entered. Workflow was not saved.")
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=1)
 
     result = storage.add_workflow(name, description, commands)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("list", context_settings=COMMAND_CONTEXT)
 def list_workflows():
     """List saved workflows."""
     result = storage.load_workflows()
-    if result["code"] == 1:
-        ui.print_error(result["message"])
+    if result["code"] != 0:
+        _print_result(result)
         raise typer.Exit(code=1)
 
     ui.show_workflows_table(result["data"])
@@ -106,8 +124,8 @@ def list_workflows():
 def search_workflows(query: str = typer.Argument(..., help="Text to find in workflows.")):
     """Search workflow names, descriptions, and commands."""
     result = storage.find_workflows(query)
-    if result["code"] == 1:
-        ui.print_error(result["message"])
+    if result["code"] != 0:
+        _print_result(result)
         raise typer.Exit(code=1)
 
     ui.show_workflows_table(result["data"])
@@ -119,7 +137,7 @@ def show_workflow(name: str = typer.Argument(..., help="Workflow name to inspect
     result = storage.get_workflow(name)
     if result["code"] != 0:
         _print_result(result)
-        raise typer.Exit(code=0 if result["code"] == 2 else 1)
+        raise typer.Exit(code=1)
 
     ui.show_workflow_details(name, result["data"])
 
@@ -129,6 +147,7 @@ def delete_workflow(name: str = typer.Argument(..., help="Workflow name to delet
     """Delete a saved workflow."""
     result = storage.delete_workflow(name)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("clearhistory", context_settings=COMMAND_CONTEXT)
@@ -138,10 +157,11 @@ def clearhistory(
     """Clear every saved workflow from Redo storage."""
     if not yes and not Confirm.ask("Clear all saved workflows?", default=False):
         ui.print_warning("clear history cancelled")
-        raise typer.Exit(code=0)
+        raise typer.Exit(code=1)
 
     result = storage.clear_workflows()
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("guide", context_settings=COMMAND_CONTEXT)
@@ -158,6 +178,7 @@ def copy_workflow(
     """Copy a workflow into a new workflow name."""
     result = storage.copy_workflow(source, target)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("rename", context_settings=COMMAND_CONTEXT)
@@ -168,6 +189,7 @@ def rename_workflow(
     """Rename a saved workflow."""
     result = storage.rename_workflow(old_name, new_name)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("run", context_settings=COMMAND_CONTEXT)
@@ -179,7 +201,7 @@ def run_workflow(
     result = storage.get_workflow(name)
     if result["code"] != 0:
         _print_result(result)
-        raise typer.Exit(code=0 if result["code"] == 2 else 1)
+        raise typer.Exit(code=1)
 
     commands = placeholders.process_commands(result["data"].get("commands", []))
     if dry:
@@ -189,8 +211,11 @@ def run_workflow(
     _print_result(run_result)
 
     if run_result["code"] == 0 and not dry:
-        storage.increment_runs(name)
-    elif run_result["code"] == 1:
+        increment_result = storage.increment_runs(name)
+        if increment_result["code"] != 0:
+            _print_result(increment_result)
+            raise typer.Exit(code=1)
+    elif run_result["code"] != 0:
         raise typer.Exit(code=1)
 
 
@@ -198,8 +223,8 @@ def run_workflow(
 def stats():
     """Show workflow usage stats."""
     result = storage.load_workflows()
-    if result["code"] == 1:
-        ui.print_error(result["message"])
+    if result["code"] != 0:
+        _print_result(result)
         raise typer.Exit(code=1)
 
     ui.show_stats(result["data"])
@@ -216,6 +241,7 @@ def export_workflows(destination: str = typer.Argument(..., help="JSON file to w
     """Export workflows to a JSON backup file."""
     result = storage.export_workflows(destination)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("import", context_settings=COMMAND_CONTEXT)
@@ -226,14 +252,15 @@ def import_workflows(
     """Import workflows from a JSON file."""
     result = storage.import_workflows(source, replace=replace)
     _print_result(result)
+    _raise_for_result(result)
 
 
 @app.command("doctor", context_settings=COMMAND_CONTEXT)
 def doctor():
     """Check workflow storage and flag risky saved commands."""
     result = storage.load_workflows()
-    if result["code"] == 1:
-        ui.print_error(result["message"])
+    if result["code"] != 0:
+        _print_result(result)
         raise typer.Exit(code=1)
 
     workflows = result["data"]
@@ -266,6 +293,8 @@ def autofix():
 
     for fix in result.get("data", {}).get("fixes", []):
         ui.console.print(f"- {fix}")
+
+    _raise_for_result(result)
 
 
 if __name__ == "__main__":

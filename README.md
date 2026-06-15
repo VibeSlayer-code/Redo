@@ -34,8 +34,10 @@ Running `redo` with no command shows the Redo ASCII banner. Running `redo --info
 Redo stores its workflow data in:
 
 ```txt
-C:/redo/files/workflows.json
+%APPDATA%/Redo/workflows.json on Windows, or ~/.redo/workflows.json when APPDATA is unavailable
 ```
+
+Set `REDO_DATA_DIR` to override the storage directory. Run `redo path` to print the exact file Redo is using.
 
 Run `redo init` to create the folder and file explicitly, or let Redo create them the first time it needs storage.
 
@@ -108,9 +110,9 @@ redo guide
 
 `redo doctor` checks the workflow file, counts saved commands/placeholders, and flags risky commands before they surprise you later.
 
-`redo autofix` repairs common storage problems: missing files, blank files, malformed JSON, and workflow entries with missing fields. If JSON is malformed, Redo saves a backup as `C:/redo/files/workflows.broken.json` before resetting the main file.
+`redo autofix` repairs common storage problems: missing files, blank files, malformed JSON, and workflow entries with missing fields. If JSON is malformed, Redo saves a non-overwriting `workflows.broken.json` backup next to the main file before resetting it.
 
-`redo clearhistory` clears every saved workflow from `C:/redo/files/workflows.json`. Use `redo clearhistory --yes` to skip the confirmation prompt.
+`redo clearhistory` clears every saved workflow from the file shown by `redo path`. Use `redo clearhistory --yes` to skip the confirmation prompt.
 
 ## Placeholders
 
@@ -132,7 +134,7 @@ Valid placeholder names use letters, numbers, and underscores, and cannot start 
 {ticket_123}
 ```
 
-Placeholder values are sanitized before execution: newlines and shell command separators like `&&`, `||`, `;`, and `|` are removed so a prompt value cannot silently append a second command.
+Placeholder values are quoted before execution so prompt input is treated as one literal value instead of shell syntax. This prevents command separators, variable expansion, and globs from silently changing the command shape.
 
 Workflow names cannot be blank or reuse Redo command names such as `run`, `new`, `delete`, or `stats`.
 

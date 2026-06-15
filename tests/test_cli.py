@@ -57,6 +57,18 @@ def test_list_empty_workflows(tmp_path, monkeypatch):
     assert "No workflows saved yet." in result.output
 
 
+def test_init_is_idempotent(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+    cli = CliRunner()
+
+    first_result = cli.invoke(main.app, ["init"])
+    second_result = cli.invoke(main.app, ["init"])
+
+    assert first_result.exit_code == 0
+    assert second_result.exit_code == 0
+    assert "workflow file already exists" in second_result.output
+
+
 def test_run_dry_preview_does_not_increment_runs(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
     storage.add_workflow("hello", "Say hello", ["echo hello"])
@@ -201,6 +213,80 @@ def test_new_workflow_rejects_reserved_name_before_prompts(tmp_path, monkeypatch
 
     result = cli.invoke(main.app, ["new", "run"])
 
-    assert result.exit_code == 0
+    assert result.exit_code == 1
     assert "reserved" in result.output
     assert "Description:" not in result.output
+
+
+def test_new_workflow_rejects_malformed_storage_before_prompts(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflows.json"
+    data_file.write_text("{bad json", encoding="utf-8")
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["new", "ship"])
+
+    assert result.exit_code == 1
+    assert "workflow file is malformed" in result.output
+    assert "Description:" not in result.output
+
+
+def test_run_missing_workflow_exits_nonzero(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["run", "missing"])
+
+    assert result.exit_code == 1
+    assert "workflow not found" in result.output
+
+
+def test_mutating_cli_failure_exits_nonzero(tmp_path, monkeypatch):
+    data_file = tmp_path / "workflows.json"
+    data_file.write_text("{bad json", encoding="utf-8")
+    monkeypatch.setattr(storage, "DATA_FILE", data_file)
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["clearhistory", "--yes"])
+
+    assert result.exit_code == 1
+    assert "run `redo autofix` first" in result.output
+    assert data_file.read_text(encoding="utf-8") == "{bad json"
+
+
+def test_run_reports_increment_failure(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    storage.add_workflow("hello", "Say hello", ["echo hello"])
+    monkeypatch.setattr(
+        main.runner,
+        "run_workflow_commands",
+        lambda commands, dry_run=False: {
+            "code": 0,
+            "status": "success",
+            "message": "workflow completed successfully",
+            "data": {"dry_run": dry_run, "commands": commands},
+        },
+    )
+    monkeypatch.setattr(
+        main.storage,
+        "increment_runs",
+        lambda name: {"code": 1, "status": "error", "message": "could not save workflows"},
+    )
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["run", "hello"])
+
+    assert result.exit_code == 1
+    assert "could not save workflows" in result.output
+
+
+def test_cancelled_dangerous_run_exits_nonzero(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflows.json")
+    storage.add_workflow("danger", "Bad idea", ["sudo reboot"])
+    monkeypatch.setattr(main.runner.Confirm, "ask", lambda *args, **kwargs: False)
+    cli = CliRunner()
+
+    result = cli.invoke(main.app, ["run", "danger"])
+
+    assert result.exit_code == 1
+    assert "workflow cancelled by user" in result.output
