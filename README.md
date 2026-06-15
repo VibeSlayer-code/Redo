@@ -3,7 +3,7 @@
 A CLI tool for saving repeated terminal workflows and running them again with one command.
 
 <p align="center">
-  <img src="https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLTfIJ.png" alt="Redo banner" width="100%" />
+  <img src="https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLEHWv.png" alt="Redo banner" width="100%" />
 </p>
 
 <p align="center">
@@ -64,7 +64,7 @@ Think of Redo as **bookmarks for terminal workflows**.
 ## Demo Flow
 
 <p align="center">
-  <img src="https://i.guns.lol/CLTfIJ.png" alt="Redo demo running workflow" width="85%" />
+  <img src="https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLTfIJ.png" alt="Redo demo running workflow" width="85%" />
 </p>
 
 ```bash
