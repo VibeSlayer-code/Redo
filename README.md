@@ -12,7 +12,13 @@ Redo lets you define those workflows once, then replay them whenever you need th
 
 ## Installation
 
-Clone the project, create a virtual environment, and install dependencies:
+Install from PyPI:
+
+```bash
+pip install redo-cli
+```
+
+For local development, clone the project, create a virtual environment, and install dependencies:
 
 ```bash
 python -m venv .venv
