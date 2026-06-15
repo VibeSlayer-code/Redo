@@ -22,11 +22,11 @@ A CLI tool for saving repeated terminal workflows and running them again with on
 <p align="center">
   <a href="#quick-start"><b>Quick Start</b></a>
   ·
-  <a href="#demo-flow"><b>Demo</b></a>
-  ·
-  <a href="#features"><b>Features</b></a>
+  <a href="#how-it-works"><b>How It Works</b></a>
   ·
   <a href="#commands"><b>Commands</b></a>
+  ·
+  <a href="#placeholders"><b>Placeholders</b></a>
   ·
   <a href="#local-development"><b>Local Development</b></a>
 </p>
@@ -37,7 +37,7 @@ A CLI tool for saving repeated terminal workflows and running them again with on
 
 Redo is a command-line tool that turns repeated terminal command chains into reusable workflows.
 
-Instead of typing this every time:
+Instead of typing the same commands again and again:
 
 ```bash
 git add .
@@ -45,13 +45,13 @@ git commit -m "fixed bug"
 git push
 ```
 
-Save it once:
+Save them once:
 
 ```bash
 redo new ship
 ```
 
-Then run it anytime:
+Run them anytime:
 
 ```bash
 redo run ship
@@ -61,29 +61,18 @@ Think of Redo as **bookmarks for terminal workflows**.
 
 ---
 
-## Demo Flow
-
-<p align="center">
-  <img src="https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLTfIJ.png" alt="Redo demo running workflow" width="85%" />
-</p>
-
-```bash
-redo new ship
-redo list
-redo show ship
-redo run ship --dry
-redo run ship
-redo stats
-```
-
----
-
 ## Quick Start
 
-Install from PyPI:
+Install Redo from PyPI:
 
 ```bash
 pip install redo-cli
+```
+
+Check the available commands:
+
+```bash
+redo --help
 ```
 
 Create a workflow:
@@ -108,7 +97,7 @@ Run it later:
 redo run ship
 ```
 
-Preview before running:
+Preview it without running anything:
 
 ```bash
 redo run ship --dry
@@ -116,9 +105,54 @@ redo run ship --dry
 
 ---
 
+## Getting Help
+
+Use Redo’s built-in help whenever you forget a command:
+
+```bash
+redo --help
+```
+
+Show help for a specific command:
+
+```bash
+redo new --help
+redo run --help
+redo import --help
+```
+
+Running `redo` with no command shows the Redo banner.
+
+Running this shows version, storage path, and credit:
+
+```bash
+redo --info
+```
+
+---
+
+## Demo Flow
+
+<p align="center">
+  <img src="https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLTfIJ.png" alt="Redo demo running workflow" width="85%" />
+</p>
+
+A typical Redo session looks like this:
+
+```bash
+redo new ship
+redo list
+redo show ship
+redo run ship --dry
+redo run ship
+redo stats
+```
+
+---
+
 ## Why It Matters
 
-Developers repeat command chains constantly:
+Developers repeat command chains constantly.
 
 <table>
   <tr>
@@ -161,7 +195,13 @@ Redo removes the small friction that adds up over time.
 
 ## Commands
 
-### Core
+Every command supports command-specific help:
+
+```bash
+redo <command> --help
+```
+
+### Core commands
 
 ```bash
 redo init
@@ -174,7 +214,7 @@ redo delete <name>
 redo stats
 ```
 
-### Developer QoL
+### Utility commands
 
 ```bash
 redo search <query>
@@ -194,9 +234,13 @@ redo clearhistory
 
 ## Example Workflow
 
+Create a workflow:
+
 ```bash
 redo new ship
 ```
+
+Enter:
 
 ```txt
 Description: Commit and push code
@@ -206,7 +250,7 @@ Command: git push
 Command: :done
 ```
 
-Saved data:
+Redo stores it like this:
 
 ```json
 {
@@ -234,7 +278,7 @@ Redo asks for the placeholder value:
 message: fixed clumsy ui
 ```
 
-Then runs:
+Then it runs:
 
 ```bash
 git add .
@@ -254,7 +298,7 @@ npm create vite@latest {project_name}
 cd {project_name}
 ```
 
-Redo asks once for each unique placeholder and replaces every occurrence across the workflow.
+Redo asks once for each unique placeholder, then replaces every occurrence across the workflow.
 
 Valid placeholder names:
 
@@ -314,16 +358,28 @@ If `APPDATA` is unavailable, Redo falls back to:
 ~/.redo/workflows.json
 ```
 
+Print the exact storage path:
+
+```bash
+redo path
+```
+
 Override the storage directory:
 
 ```bash
 REDO_DATA_DIR=<path>
 ```
 
-Print the exact storage path:
+Initialize storage manually:
 
 ```bash
-redo path
+redo init
+```
+
+Check storage health:
+
+```bash
+redo doctor
 ```
 
 Repair common storage issues:
@@ -404,6 +460,18 @@ update run count
 ```
 
 This keeps the codebase simple while still supporting useful CLI features like dry runs, safety checks, repair tools, and stats.
+
+---
+
+## Git Push Tip
+
+If Git says the current branch has no upstream branch, run the command Git suggests once:
+
+```bash
+git push --set-upstream origin master
+```
+
+After that, workflows containing `git push` can push normally.
 
 ---
 
