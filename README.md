@@ -12,7 +12,7 @@ A CLI tool for saving repeated terminal workflows and running them again with on
 
 <p align="center">
   <a href="https://pypi.org/project/redo-cli/">
-    <img src="https://img.shields.io/pypi/v/redo-cli?style=for-the-badge&label=PyPI" alt="PyPI version">
+    <img src="https://img.shields.io/pypi/v/redo-cli?style=for-the-badge&label=PyPI&cacheSeconds=300" alt="PyPI version">
   </a>
   <img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/CLI-Workflow%20Automation-6D5DFB?style=for-the-badge" alt="CLI Workflow Automation">
