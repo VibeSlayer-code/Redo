@@ -44,7 +44,7 @@ def test_info_option_shows_banner_version_and_credit():
     assert result.exit_code == 0
     assert "/$$$$$$$" in result.output
     assert "Version" in result.output
-    assert "credit-vibeslayer" in result.output
+    assert "Vibeslayer-code" in result.output
 
 
 def test_list_empty_workflows(tmp_path, monkeypatch):

@@ -74,16 +74,17 @@ def test_workflow_details_are_grouped_with_named_header(monkeypatch):
     assert "git push" in rendered
 
 
-def test_info_screen_has_launch_check_and_credit(monkeypatch):
+def test_info_screen_has_launch_check_credit_and_storage_path(monkeypatch):
     output = capture_ui(monkeypatch)
 
-    ui.show_info("0.1.0", "credit-vibeslayer", animated=False)
+    ui.show_info("0.1.0", "Vibeslayer-code", storage_path="C:/Redo/workflows.json", animated=False)
 
     rendered = output.getvalue()
     assert "/$$$$$$$" in rendered
     assert "Launch check" in rendered
     assert "Ready to redo" in rendered
-    assert "credit-vibeslayer" in rendered
+    assert "Vibeslayer-code" in rendered
+    assert "C:/Redo/workflows.json" in rendered
 
 
 def test_estimated_time_saved_weights_developer_commands():
@@ -111,6 +112,25 @@ def test_stats_formats_estimated_time_saved(monkeypatch):
     assert "Redo stats" in rendered
     assert "Estimated time saved" in rendered
     assert "2m 10s" in rendered
+
+
+def test_stats_handles_manually_corrupted_run_counts(monkeypatch):
+    output = capture_ui(monkeypatch)
+
+    ui.show_stats(
+        {
+            "odd": {
+                "description": "Edited by hand",
+                "commands": ["git push"],
+                "runs": "many",
+            }
+        }
+    )
+
+    rendered = output.getvalue()
+    assert "Redo stats" in rendered
+    assert "Total runs" in rendered
+    assert "0" in rendered
 
 
 def test_doctor_report_summarizes_health(monkeypatch):

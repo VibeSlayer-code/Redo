@@ -5,7 +5,7 @@ from modules import placeholders, runner, storage, ui
 
 
 VERSION = "0.1.0"
-CREDIT = "credit-vibeslayer"
+CREDIT = "Vibeslayer-code"
 COMMAND_CONTEXT = {"help_option_names": ["--help", "-h"]}
 
 app = typer.Typer(
@@ -60,7 +60,7 @@ def root(
         raise typer.Exit(code=0)
 
     if info:
-        ui.show_info(VERSION, CREDIT, animated=True)
+        ui.show_info(VERSION, CREDIT, storage_path=str(storage.DATA_FILE.resolve()), animated=True)
         raise typer.Exit(code=0)
 
     if ctx.invoked_subcommand is None:

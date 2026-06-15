@@ -11,6 +11,7 @@ def test_pyproject_defines_redo_console_script():
     dependencies = pyproject["project"]["dependencies"]
     assert any(dependency.startswith("typer") for dependency in dependencies)
     assert any(dependency.startswith("rich") for dependency in dependencies)
+    assert pyproject["project"]["authors"] == [{"name": "Vibeslayer-code"}]
 
 
 def test_main_version_matches_pyproject_version():

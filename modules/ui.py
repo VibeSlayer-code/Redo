@@ -106,6 +106,13 @@ def _format_seconds(seconds):
     return " ".join(parts)
 
 
+def _safe_run_count(workflow):
+    try:
+        return max(int(workflow.get("runs", 0)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _estimate_command_saved_seconds(command):
     normalized = " ".join(command.lower().split())
     seconds = 6
@@ -134,7 +141,7 @@ def _estimate_command_saved_seconds(command):
 
 
 def _estimate_workflow_saved_seconds(workflow):
-    runs = int(workflow.get("runs", 0))
+    runs = _safe_run_count(workflow)
     commands = workflow.get("commands", [])
     return sum(_estimate_command_saved_seconds(command) for command in commands) * runs
 
@@ -185,7 +192,7 @@ def _show_info_animation():
             time.sleep(0.16)
 
 
-def show_info(version, credit, animated=False):
+def show_info(version, credit, storage_path="redo path", animated=False):
     if animated:
         _show_info_animation()
 
@@ -200,7 +207,7 @@ def show_info(version, credit, animated=False):
         [
             ("Version", version),
             ("Credit", credit),
-            ("Storage", "redo path"),
+            ("Storage", storage_path),
             ("Guide", "redo guide"),
         ]
     )
@@ -400,21 +407,17 @@ def show_commands(commands):
 
 def show_stats(workflows):
     total_workflows = len(workflows)
-    total_runs = sum(int(workflow.get("runs", 0)) for workflow in workflows.values())
+    total_runs = sum(_safe_run_count(workflow) for workflow in workflows.values())
     total_commands = sum(len(workflow.get("commands", [])) for workflow in workflows.values())
-    total_commands_run = sum(
-        len(workflow.get("commands", [])) * int(workflow.get("runs", 0))
-        for workflow in workflows.values()
-    )
     estimated_seconds_saved = sum(_estimate_workflow_saved_seconds(workflow) for workflow in workflows.values())
     most_used = "-"
 
     if workflows:
         most_used_name, most_used_workflow = max(
             workflows.items(),
-            key=lambda item: int(item[1].get("runs", 0)),
+            key=lambda item: _safe_run_count(item[1]),
         )
-        most_used = f"{most_used_name} ({_plural(int(most_used_workflow.get('runs', 0)), 'run')})"
+        most_used = f"{most_used_name} ({_plural(_safe_run_count(most_used_workflow), 'run')})"
 
     summary = _metadata_table(
         [

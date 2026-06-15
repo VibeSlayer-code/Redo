@@ -8,6 +8,7 @@ version = "0.1.0"
 description = "Bookmarks for terminal workflows."
 readme = "README.md"
 requires-python = ">=3.10"
+authors = [{ name = "Vibeslayer-code" }]
 keywords = ["cli", "terminal", "workflow", "automation", "developer-tools"]
 classifiers = [
   "Development Status :: 4 - Beta",
