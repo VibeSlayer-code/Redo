@@ -489,6 +489,18 @@ After that, workflows containing `git push` can push normally.
 
 ## License
 
-Source-available, all rights reserved.
+<details>
+  <summary><b>View License</b></summary>
 
-You may view the source code, but you may not copy, modify, distribute, or use it without permission.
+```txt
+Copyright (c) 2026 Sudo Softworks (Owner-Vibeslayer-code (Vihaan Kanwar))
+
+All rights reserved.
+
+This source code is made publicly available for viewing and educational reference only.
+
+You may not copy, modify, distribute, sublicense, sell, publish, or use this software or any substantial portion of it without explicit written permission from the copyright holder.
+
+Permission is granted only to view the source code in this repository.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND.
