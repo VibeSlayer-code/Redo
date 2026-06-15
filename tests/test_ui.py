@@ -41,6 +41,21 @@ def test_workflows_table_has_clear_title_and_command_counts(monkeypatch):
     assert "2 commands" in rendered
 
 
+def test_help_menu_is_compact_and_grouped(monkeypatch):
+    output = capture_ui(monkeypatch)
+
+    ui.show_help_menu("0.1.0")
+
+    rendered = output.getvalue()
+    assert "/$$$$$$$" in rendered
+    assert "Redo command center" in rendered
+    assert "Daily workflow" in rendered
+    assert "Utilities" in rendered
+    assert "Storage and maintenance" in rendered
+    assert "redo <command> --help" in rendered
+    assert rendered.count("+") < 40
+
+
 def test_workflow_details_are_grouped_with_named_header(monkeypatch):
     output = capture_ui(monkeypatch)
 

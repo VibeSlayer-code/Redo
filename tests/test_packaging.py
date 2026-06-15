@@ -8,8 +8,9 @@ def test_pyproject_defines_redo_console_script():
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     assert pyproject["project"]["scripts"]["redo"] == "main:app"
-    assert "typer" in pyproject["project"]["dependencies"]
-    assert "rich" in pyproject["project"]["dependencies"]
+    dependencies = pyproject["project"]["dependencies"]
+    assert any(dependency.startswith("typer") for dependency in dependencies)
+    assert any(dependency.startswith("rich") for dependency in dependencies)
 
 
 def test_main_version_matches_pyproject_version():

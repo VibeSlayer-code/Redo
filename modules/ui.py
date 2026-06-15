@@ -1,4 +1,5 @@
 from rich import box
+from rich.align import Align
 from rich.console import Console, Group
 from rich.panel import Panel
 from rich.syntax import Syntax
@@ -125,9 +126,9 @@ def print_warning(message):
 
 
 def show_banner():
-    console.print(_gradient_text(ASCII_BANNER))
-    console.print(Text("Bookmarks for terminal workflows.", style=MUTED))
-    console.print(Text("Run redo --help for commands or redo --info for project details.", style=MUTED))
+    console.print(Align.center(_gradient_text(ASCII_BANNER)))
+    console.print(Align.center(Text("Bookmarks for terminal workflows.", style=MUTED)))
+    console.print(Align.center(Text("Run redo --help for commands or redo --info.", style=MUTED)))
 
 
 def show_info(version, credit):
@@ -140,7 +141,7 @@ def show_info(version, credit):
         ]
     )
 
-    console.print(_gradient_text(ASCII_BANNER))
+    console.print(Align.center(_gradient_text(ASCII_BANNER)))
     console.print(
         Panel(
             metadata,
@@ -152,64 +153,39 @@ def show_info(version, credit):
 
 
 def show_help_menu(version):
-    console.print(_gradient_text(ASCII_BANNER))
-    console.print(Text("Bookmarks for terminal workflows.", style=MUTED))
+    console.print(Align.center(_gradient_text(ASCII_BANNER)))
+    console.print(Align.center(Text("Bookmarks for terminal workflows.", style=MUTED)))
 
-    daily = Table(
-        title="Daily workflow",
+    commands = Table(
+        title="Redo command center",
         box=box.ROUNDED,
         border_style=TABLE_BORDER,
         header_style=BRAND,
+        show_lines=False,
+        expand=True,
     )
-    daily.add_column("Command", no_wrap=True)
-    daily.add_column("Purpose")
-    daily.add_row("redo new <name>", "Save a reusable workflow")
-    daily.add_row("redo run <name>", "Run a saved workflow")
-    daily.add_row("redo run <name> --dry", "Preview commands without executing")
-    daily.add_row("redo list", "See every saved workflow")
-    daily.add_row("redo show <name>", "Inspect commands and run count")
+    commands.add_column("Section", style=BRAND, no_wrap=True, width=23)
+    commands.add_column("Commands", no_wrap=True, width=28)
+    commands.add_column("Purpose", ratio=1)
+    commands.add_row(
+        "Daily workflow",
+        "redo new <name>\nredo run <name>\nredo run <name> --dry\nredo list",
+        "Create and run workflows.",
+    )
+    commands.add_row(
+        "Utilities",
+        "redo show <name>\nredo search <query>\nredo copy <src> <target>\nredo rename <old> <new>\nredo delete <name>",
+        "Find and manage workflows.",
+    )
+    commands.add_row(
+        "Storage and maintenance",
+        "redo path\nredo doctor\nredo autofix\nredo export <file>\nredo import <file>\nredo clearhistory",
+        "Repair, back up, restore.",
+    )
+    commands.add_row("--", "redo guide\nredo --info\nredo <command> --help", f"Guide, version {version}, help.")
 
-    utilities = Table(
-        title="Utilities",
-        box=box.ROUNDED,
-        border_style=TABLE_BORDER,
-        header_style=BRAND,
-    )
-    utilities.add_column("Command", no_wrap=True)
-    utilities.add_column("Purpose")
-    utilities.add_row("redo guide", "Open the quick-start guide")
-    utilities.add_row("redo search <query>", "Find workflows by name, description, or command")
-    utilities.add_row("redo copy <source> <target>", "Duplicate a workflow")
-    utilities.add_row("redo rename <old> <new>", "Rename a workflow")
-    utilities.add_row("redo delete <name>", "Delete one workflow")
-    utilities.add_row("redo clearhistory", "Clear all saved workflows")
-
-    maintenance = Table(
-        title="Storage and maintenance",
-        box=box.ROUNDED,
-        border_style=TABLE_BORDER,
-        header_style=BRAND,
-    )
-    maintenance.add_column("Command", no_wrap=True)
-    maintenance.add_column("Purpose")
-    maintenance.add_row("redo path", "Show workflow storage location")
-    maintenance.add_row("redo doctor", "Check storage and risky saved commands")
-    maintenance.add_row("redo autofix", "Repair common storage problems")
-    maintenance.add_row("redo export <file>", "Back up workflows")
-    maintenance.add_row("redo import <file>", "Import workflows")
-    maintenance.add_row("redo --info", f"Show version {version} and credits")
-
-    console.print(
-        Panel(
-            Text("Redo command center", style=BRAND),
-            border_style=PANEL_BORDER,
-            box=box.ROUNDED,
-        )
-    )
-    console.print(daily)
-    console.print(utilities)
-    console.print(maintenance)
-    console.print(Text("Tip: placeholders look like {message} and are filled when you run a workflow.", style=MUTED))
+    console.print(commands)
+    console.print(Align.center(Text("Tip: placeholders look like {message} and are filled when you run a workflow.", style=MUTED)))
 
 
 def show_guide():
@@ -260,9 +236,8 @@ def show_guide():
     warnings.add_row('Use git commit -m "{message}"', "Git needs -m for commit messages.")
     warnings.add_row("Use --dry first", "Preview before running risky workflows.")
 
-    console.print(Panel(intro, border_style=PANEL_BORDER, box=box.ROUNDED))
-    console.print(Panel(basics, title="Core commands", border_style=PANEL_BORDER, box=box.ROUNDED))
-    console.print(Panel(example, title="Example workflow", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(intro, title="Redo guide", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(Group(basics, "", example), title="Create a workflow", border_style=PANEL_BORDER, box=box.ROUNDED))
     console.print(placeholders)
     console.print(warnings)
 
