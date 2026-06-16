@@ -8,11 +8,14 @@ from pathlib import Path
 STATE_FILE_NAME = "redo_state.json"
 RESERVED_WORKFLOW_NAMES = {
     "autofix",
+    "backup",
     "clearhistory",
     "copy",
     "delete",
     "doctor",
+    "edit",
     "export",
+    "folder",
     "guide",
     "help",
     "import",
@@ -26,6 +29,9 @@ RESERVED_WORKFLOW_NAMES = {
     "search",
     "show",
     "stats",
+    "templates",
+    "update",
+    "use",
 }
 
 
@@ -135,6 +141,35 @@ def _broken_backup_file():
 
 def _state_file():
     return DATA_FILE.parent / STATE_FILE_NAME
+
+
+def load_state():
+    state_file = _state_file()
+    if not state_file.exists() or not state_file.read_text(encoding="utf-8").strip():
+        return _result(0, "success", "state loaded successfully", {})
+
+    try:
+        with state_file.open("r", encoding="utf-8") as file:
+            state = json.load(file)
+    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
+        return _result(2, "warning", "state file is malformed", {})
+
+    if not isinstance(state, dict):
+        return _result(2, "warning", "state file must contain a JSON object", {})
+
+    return _result(0, "success", "state loaded successfully", state)
+
+
+def save_state(state):
+    if not isinstance(state, dict):
+        return _result(1, "error", "state must be a dictionary")
+
+    try:
+        _write_json_file(_state_file(), state)
+    except OSError as error:
+        return _result(1, "error", f"could not save state: {error}")
+
+    return _result(0, "success", "state saved successfully")
 
 
 def _normalize_workflow(name, workflow):
@@ -268,32 +303,21 @@ def clear_workflows():
 
 
 def should_offer_first_run_guide():
-    state_file = _state_file()
-    if not state_file.exists():
+    result = load_state()
+    if result["code"] != 0:
         return True
 
-    try:
-        with state_file.open("r", encoding="utf-8") as file:
-            state = json.load(file)
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError):
-        return True
-
+    state = result["data"]
     return not bool(state.get("first_run_guide_seen", False))
 
 
 def mark_first_run_guide_seen():
-    state_file = _state_file()
-
-    try:
-        state = {}
-        if state_file.exists() and state_file.read_text(encoding="utf-8").strip():
-            with state_file.open("r", encoding="utf-8") as file:
-                state = json.load(file)
-
-        state["first_run_guide_seen"] = True
-        _write_json_file(state_file, state)
-    except (json.JSONDecodeError, OSError, UnicodeDecodeError) as error:
-        return _result(1, "error", f"could not update first-run guide state: {error}")
+    result = load_state()
+    state = result.get("data", {})
+    state["first_run_guide_seen"] = True
+    save_result = save_state(state)
+    if save_result["code"] != 0:
+        return save_result
 
     return _result(0, "success", "first-run guide state updated")
 
@@ -321,6 +345,35 @@ def add_workflow(name, description, commands):
         return save_result
 
     return _result(0, "success", "workflow saved successfully")
+
+
+def update_workflow(name, description=None, commands=None):
+    name = str(name).strip()
+    workflows, error = _require_loaded_workflows(load_workflows())
+    if error:
+        return error
+
+    if name not in workflows:
+        return _result(2, "warning", "workflow not found")
+
+    if commands is not None:
+        clean_commands = [str(command).strip() for command in commands if str(command).strip()]
+        if not clean_commands:
+            return _result(2, "warning", "workflow needs at least one command")
+    else:
+        clean_commands = workflows[name].get("commands", [])
+
+    workflows[name] = {
+        "description": workflows[name].get("description", "") if description is None else str(description),
+        "commands": clean_commands,
+        "runs": _normalize_workflow(name, workflows[name])["runs"],
+    }
+
+    save_result = save_workflows(workflows)
+    if save_result["code"] != 0:
+        return save_result
+
+    return _result(0, "success", "workflow updated successfully")
 
 
 def get_workflow(name):

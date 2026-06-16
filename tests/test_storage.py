@@ -62,6 +62,31 @@ def test_add_workflow_rejects_duplicates(tmp_path, monkeypatch):
     assert result["status"] == "warning"
 
 
+def test_update_workflow_replaces_description_and_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+    storage.add_workflow("ship", "Old description", ["git status"])
+    storage.increment_runs("ship")
+
+    result = storage.update_workflow("ship", "Commit and push", ["git add .", "git push"])
+
+    assert result["status"] == "success"
+    assert storage.get_workflow("ship")["data"] == {
+        "description": "Commit and push",
+        "commands": ["git add .", "git push"],
+        "runs": 1,
+    }
+
+
+def test_update_workflow_rejects_missing_or_empty_commands(tmp_path, monkeypatch):
+    monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
+
+    missing_result = storage.update_workflow("missing", "Nope", ["echo bad"])
+    empty_result = storage.update_workflow("missing", "Nope", [])
+
+    assert missing_result["code"] == 2
+    assert empty_result["code"] == 2
+
+
 def test_add_workflow_rejects_blank_or_reserved_names(tmp_path, monkeypatch):
     monkeypatch.setattr(storage, "DATA_FILE", tmp_path / "workflow.json")
 

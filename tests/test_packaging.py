@@ -18,3 +18,12 @@ def test_main_version_matches_pyproject_version():
     pyproject = tomllib.loads(Path("pyproject.toml").read_text(encoding="utf-8"))
 
     assert main.VERSION == pyproject["project"]["version"]
+
+
+def test_contributor_docs_exist_and_are_linked_from_readme():
+    readme = Path("README.md").read_text(encoding="utf-8")
+    docs = Path("docs.md").read_text(encoding="utf-8")
+
+    assert "docs.md" in readme
+    assert "Contributor Guide" in docs
+    assert "Architecture" in docs

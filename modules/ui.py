@@ -245,39 +245,35 @@ def show_help_menu(version):
     commands.add_column("Commands", no_wrap=True, width=28)
     commands.add_column("Purpose", ratio=1)
     commands.add_row(
-        "Daily workflow",
-        "redo new <name>\nredo run <name>\nredo run <name> --dry\nredo list",
-        "Create and run workflows.",
+        "Start",
+        "redo new <name>\nredo use <template> <name>\nredo run <name>\nredo edit <name>\nredo list",
+        "Create, run, fix, and browse workflows.",
     )
     commands.add_row(
-        "Utilities",
-        "redo show <name>\nredo search <query>\nredo copy <src> <target>\nredo rename <old> <new>\nredo delete <name>",
-        "Find and manage workflows.",
+        "Inspect",
+        "redo show <name>\nredo run <name> --dry\nredo run <name> --show-output\nredo search <query>",
+        "Preview commands and view output when you need it.",
     )
     commands.add_row(
-        "Storage and maintenance",
-        "redo path\nredo doctor\nredo autofix\nredo export <file>\nredo import <file>\nredo clearhistory",
-        "Repair, back up, restore.",
+        "Care",
+        "redo stats\nredo guide\nredo lint\nredo doctor\nredo update\nredo update --check-only",
+        "Learn, diagnose, and clean up.",
     )
-    commands.add_row("--", "redo guide\nredo --info\nredo <command> --help", f"Guide, version {version}, help.")
+    commands.add_row("Advanced", "redo templates\nredo backup\nredo copy | rename\nredo import | export\nredo folder | path | autofix", "Power-user tools.")
+    commands.add_row("--", "redo --info\nredo <command> --help", f"Version {version} and command details.")
 
     console.print(commands)
     console.print(Align.center(Text("Tip: placeholders look like {message} and are filled when you run a workflow.", style=MUTED)))
 
 
 def show_guide():
-    intro = Text.assemble(
-        ("Redo guide\n", BRAND),
-        ("Save repeated terminal workflows once. Run them again with one command.", MUTED),
-    )
-
     basics = Table.grid(padding=(0, 2))
     basics.add_column(style=MUTED, no_wrap=True)
     basics.add_column()
-    basics.add_row("Create", "redo new ship")
-    basics.add_row("Run", "redo run ship")
-    basics.add_row("Preview", "redo run ship --dry")
-    basics.add_row("Inspect", "redo list  |  redo show ship")
+    basics.add_row("1. Create", "redo new ship")
+    basics.add_row("2. Run", "redo run ship")
+    basics.add_row("3. Fix", "redo edit ship")
+    basics.add_row("4. Preview", "redo run ship --dry")
 
     example = Syntax(
         'Description: Commit and push code\n'
@@ -285,6 +281,13 @@ def show_guide():
         'Command: git commit -m "{message}"\n'
         'Command: git push\n'
         'Command: :done',
+        "text",
+        theme="ansi_dark",
+        word_wrap=True,
+    )
+
+    run_example = Syntax(
+        "redo run ship\nmessage: added login page",
         "text",
         theme="ansi_dark",
         word_wrap=True,
@@ -301,22 +304,18 @@ def show_guide():
     placeholders.add_row("{message}", "Redo asks once, then inserts the value everywhere.")
     placeholders.add_row("{project_name}", "Names must use letters, numbers, and underscores.")
 
-    warnings = Table(
-        title="Warnings",
-        box=box.ROUNDED,
-        border_style=TABLE_BORDER,
-        header_style=BRAND,
-    )
-    warnings.add_column("Tip", no_wrap=True)
-    warnings.add_column("Why it matters")
-    warnings.add_row("One command per prompt", "Do not separate commands with commas.")
-    warnings.add_row('Use git commit -m "{message}"', "Git needs -m for commit messages.")
-    warnings.add_row("Use --dry first", "Preview before running risky workflows.")
+    tips = Table.grid(padding=(0, 1))
+    tips.add_column(style=MUTED, no_wrap=True)
+    tips.add_column()
+    tips.add_row("Tip", "Enter one command per prompt. Do not separate commands with commas.")
+    tips.add_row("Git", 'Use git commit -m "{message}" for commit messages.')
+    tips.add_row("Safety", "Use redo run ship --dry before the first real run.")
 
-    console.print(Panel(intro, title="Redo guide", border_style=PANEL_BORDER, box=box.ROUNDED))
-    console.print(Panel(Group(basics, "", example), title="Create a workflow", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(basics, title="Redo guide", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(example, title="Create example", border_style=PANEL_BORDER, box=box.ROUNDED))
+    console.print(Panel(run_example, title="Run example", border_style=PANEL_BORDER, box=box.ROUNDED))
     console.print(placeholders)
-    console.print(warnings)
+    console.print(Panel(tips, title="Quick notes", border_style=PANEL_BORDER, box=box.ROUNDED))
 
 
 def show_workflows_table(workflows):
@@ -353,6 +352,74 @@ def show_workflows_table(workflows):
         )
 
     console.print(table)
+
+
+def show_templates_table(templates):
+    table = Table(
+        title="Workflow templates",
+        box=box.ROUNDED,
+        border_style=TABLE_BORDER,
+        header_style=BRAND,
+    )
+    table.add_column("Template", style="bold", no_wrap=True)
+    table.add_column("Description")
+    table.add_column("Commands", justify="right", no_wrap=True)
+
+    for name, template in sorted(templates.items()):
+        table.add_row(name, template.get("description", "-"), _plural(len(template.get("commands", [])), "command"))
+
+    console.print(table)
+
+
+def show_lint_report(result):
+    issues = result.get("data", {}).get("issues", [])
+    if not issues:
+        console.print(
+            Panel(
+                Text("No workflow issues found.", style=SUCCESS),
+                title="Workflow lint",
+                border_style=SUCCESS,
+                box=box.ROUNDED,
+            )
+        )
+        return
+
+    table = Table(
+        title="Workflow lint",
+        box=box.ROUNDED,
+        border_style=WARNING,
+        header_style=WARNING,
+    )
+    table.add_column("Workflow", style="bold", no_wrap=True)
+    table.add_column("Severity", no_wrap=True)
+    table.add_column("Issue")
+    table.add_column("Command", overflow="fold")
+
+    for issue in issues:
+        table.add_row(
+            issue.get("workflow", "-"),
+            issue.get("severity", "-"),
+            issue.get("message", "-"),
+            issue.get("command", "-"),
+        )
+
+    console.print(table)
+
+
+def show_update_result(result, install_command="pip install --upgrade redo-cli"):
+    data = result.get("data", {})
+    update_available = data.get("update_available", False)
+    border = WARNING if update_available else SUCCESS
+    body = _metadata_table(
+        [
+            ("Current", data.get("current_version", "-")),
+            ("Latest", data.get("latest_version", "-")),
+            ("Status", result["message"]),
+            ("Action", "installing with pip" if update_available else "not needed"),
+            ("Manual", install_command if update_available else "-"),
+        ]
+    )
+    console.print(Panel(body, title="Redo update", border_style=border, box=box.ROUNDED))
 
 
 def show_workflow_details(name, workflow):

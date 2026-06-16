@@ -71,7 +71,8 @@ def test_run_workflow_commands_stops_on_failure(monkeypatch):
 
     assert result["code"] == 1
     assert result["status"] == "error"
-    assert commands_run == ["first"]
+    assert len(commands_run) == 1
+    assert "first" in str(commands_run[0])
     assert result["data"]["stderr"] == "failed hard"
     assert result["data"]["stdout"] == "nope"
 
@@ -101,6 +102,47 @@ def test_run_command_captures_output_and_sets_timeout(monkeypatch):
     assert run_kwargs["text"] is True
     assert run_kwargs["timeout"] == runner.COMMAND_TIMEOUT_SECONDS
     assert result["data"]["stdout"] == "quiet output"
+
+
+def test_run_command_can_target_powershell_or_cmd():
+    assert runner._command_for_shell("ls", "powershell") == ["powershell", "-NoProfile", "-Command", "ls"]
+    assert runner._command_for_shell("dir", "cmd") == ["cmd", "/d", "/c", "dir"]
+
+
+def test_run_workflow_commands_can_show_success_output(monkeypatch):
+    output = StringIO()
+    monkeypatch.setattr(
+        runner,
+        "console",
+        Console(file=output, force_terminal=False, width=100, color_system=None),
+    )
+
+    def fake_run(command, **kwargs):
+        return subprocess.CompletedProcess(command, 0, stdout="hello from command", stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result = runner.run_workflow_commands(["echo hello"], output_mode="summary", shell_name="cmd")
+
+    rendered = output.getvalue()
+    assert result["code"] == 0
+    assert "Command output" in rendered
+    assert "hello from command" in rendered
+
+
+def test_verbose_output_mode_disables_capture(monkeypatch):
+    run_kwargs = {}
+
+    def fake_run(command, **kwargs):
+        run_kwargs.update(kwargs)
+        return subprocess.CompletedProcess(command, 0, stdout="", stderr="")
+
+    monkeypatch.setattr(runner.subprocess, "run", fake_run)
+
+    result = runner.run_command("echo hello", output_mode="verbose", shell_name="cmd")
+
+    assert result["code"] == 0
+    assert run_kwargs["capture_output"] is False
 
 
 def test_run_command_handles_timeout(monkeypatch):

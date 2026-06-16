@@ -49,11 +49,25 @@ def test_help_menu_is_compact_and_grouped(monkeypatch):
     rendered = output.getvalue()
     assert "/$$$$$$$" in rendered
     assert "Redo command center" in rendered
-    assert "Daily workflow" in rendered
-    assert "Utilities" in rendered
-    assert "Storage and maintenance" in rendered
+    assert "Start" in rendered
+    assert "Inspect" in rendered
+    assert "Care" in rendered
+    assert "redo edit <name>" in rendered
     assert "redo <command> --help" in rendered
     assert rendered.count("+") < 40
+
+
+def test_guide_is_beginner_first_without_heavy_sections(monkeypatch):
+    output = capture_ui(monkeypatch)
+
+    ui.show_guide()
+
+    rendered = output.getvalue()
+    assert "Redo guide" in rendered
+    assert "1. Create" in rendered
+    assert "2. Run" in rendered
+    assert "{message}" in rendered
+    assert "Warnings" not in rendered
 
 
 def test_workflow_details_are_grouped_with_named_header(monkeypatch):

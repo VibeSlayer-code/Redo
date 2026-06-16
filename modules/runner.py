@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 import time
@@ -32,6 +33,9 @@ STATUS_DONE = "Done"
 STATUS_FAILED = "Failed"
 STATUS_SKIPPED = "Skipped"
 SPINNER_NAME = "line"
+OUTPUT_HIDDEN = "hidden"
+OUTPUT_SUMMARY = "summary"
+OUTPUT_VERBOSE = "verbose"
 
 
 def _result(code, status, message, data=None):
@@ -169,6 +173,36 @@ def _stringify_output(output):
     return str(output)
 
 
+def _default_shell_name():
+    return "powershell" if os.name == "nt" else "system"
+
+
+def _normalize_shell_name(shell_name):
+    if not shell_name or str(shell_name).lower() == "auto":
+        return _default_shell_name()
+
+    selected = str(shell_name).lower()
+    if selected in {"powershell", "cmd", "bash", "sh", "system"}:
+        return selected
+
+    return _default_shell_name()
+
+
+def _command_for_shell(command, shell_name=None):
+    selected = _normalize_shell_name(shell_name)
+    if selected == "powershell":
+        return ["powershell", "-NoProfile", "-Command", command]
+    if selected == "cmd":
+        return ["cmd", "/d", "/c", command]
+    if selected in {"bash", "sh"}:
+        return [selected, "-lc", command]
+    return command
+
+
+def _should_use_shell(command_to_run):
+    return isinstance(command_to_run, str)
+
+
 def _extract_git_upstream_hint(command, stderr):
     if command.strip() != "git push":
         return None
@@ -211,13 +245,43 @@ def _show_failure_details(result):
     )
 
 
-def run_command(command):
+def _show_command_output(result, index=None):
+    data = result.get("data", {})
+    stdout = data.get("stdout", "").strip()
+    stderr = data.get("stderr", "").strip()
+    if not stdout and not stderr:
+        return
+
+    parts = [Text(f"Command: {data.get('command', '-')}", style="bold")]
+    if stdout:
+        parts.extend(["", Text(_trim_output(stdout))])
+    if stderr:
+        parts.extend(["", Text("stderr", style="yellow"), Text(_trim_output(stderr))])
+
+    title = "Command output"
+    if index is not None:
+        parts.insert(0, Text(f"Step {index}", style="dim"))
+        parts.insert(1, "")
+
+    console.print(
+        Panel(
+            Group(*parts),
+            title=title,
+            border_style="grey46",
+            box=box.ROUNDED,
+        )
+    )
+
+
+def run_command(command, output_mode=OUTPUT_HIDDEN, shell_name=None):
     started_at = time.perf_counter()
+    command_to_run = _command_for_shell(command, shell_name)
+    capture_output = output_mode != OUTPUT_VERBOSE
     try:
         completed = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
+            command_to_run,
+            shell=_should_use_shell(command_to_run),
+            capture_output=capture_output,
             text=True,
             timeout=COMMAND_TIMEOUT_SECONDS,
         )
@@ -260,7 +324,7 @@ def run_command(command):
     return _result(0, "success", "command completed successfully", data)
 
 
-def run_workflow_commands(commands, dry_run=False):
+def run_workflow_commands(commands, dry_run=False, output_mode=OUTPUT_HIDDEN, shell_name=None):
     if dry_run:
         return _result(
             0,
@@ -281,6 +345,7 @@ def run_workflow_commands(commands, dry_run=False):
     statuses = [STATUS_PENDING for _ in commands]
     durations = [None for _ in commands]
     failed_result = None
+    command_results = []
 
     with Live(
         _workflow_view(commands, statuses, durations),
@@ -291,7 +356,7 @@ def run_workflow_commands(commands, dry_run=False):
             statuses[index] = STATUS_RUNNING
             live.update(_workflow_view(commands, statuses, durations, current_index=index))
 
-            result = run_command(command)
+            result = run_command(command, output_mode=output_mode, shell_name=shell_name)
             durations[index] = result.get("data", {}).get("duration_seconds")
             if result["code"] != 0:
                 statuses[index] = STATUS_FAILED
@@ -301,6 +366,7 @@ def run_workflow_commands(commands, dry_run=False):
                 failed_result = result
                 break
 
+            command_results.append(result)
             statuses[index] = STATUS_DONE
             live.update(_workflow_view(commands, statuses, durations, current_index=index))
 
@@ -309,9 +375,18 @@ def run_workflow_commands(commands, dry_run=False):
         _show_failure_details(failed_result)
         return failed_result
 
+    if output_mode == OUTPUT_SUMMARY:
+        for index, result in enumerate(command_results, start=1):
+            _show_command_output(result, index=index)
+
     return _result(
         0,
         "success",
         "workflow completed successfully",
-        {"dry_run": False, "commands": commands, "durations": durations},
+        {
+            "dry_run": False,
+            "commands": commands,
+            "durations": durations,
+            "results": [result.get("data", {}) for result in command_results],
+        },
     )
