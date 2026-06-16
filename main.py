@@ -11,7 +11,7 @@ from rich.prompt import Confirm, Prompt
 from modules import inspector, placeholders, runner, storage, templates, ui, update_checker
 
 
-VERSION = "1.1.6"
+VERSION = "1.1.7"
 CREDIT = "Vibeslayer-code"
 COMMAND_CONTEXT = {"help_option_names": ["--help", "-h"]}
 
