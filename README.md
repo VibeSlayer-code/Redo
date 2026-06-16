@@ -4,7 +4,7 @@
 
 Redo saves command chains you type again and again, then runs them later with one short command. It is built for developers, students, and hackathon builders who want repeatable setup, test, build, clean, and ship workflows without memorizing long README sections.
 
-![Redo banner](assets/banner.png)
+![Redo banner](https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLEHWv.png)
 
 ## Why Redo Exists
 
