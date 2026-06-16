@@ -49,8 +49,8 @@ def test_info_option_shows_banner_version_and_credit():
     assert "Vibeslayer-code" in result.output
 
 
-def test_version_is_v1_1_5():
-    assert main.VERSION == "1.1.5"
+def test_version_is_v1_1_6():
+    assert main.VERSION == "1.1.6"
 
 
 def test_list_empty_workflows(tmp_path, monkeypatch):
