@@ -6,6 +6,12 @@ Redo saves command chains you type again and again, then runs them later with on
 
 ![Redo banner](https://images.guns.lol/deb9f1be54e955717bb3d9ed7d12fb5af82048b4/CLEHWv.png)
 
+## 3 Major QoL Improvements
+
+1. **Project-local workflows** - store workflows in `.redo/workflows.json` so each project can ship setup, dev, build, test, and deploy commands.
+2. **Automatic workflow generation** - `redo setup` scans the project and generates useful workflows automatically.
+3. **Preflight checks** - `redo preflight <name>` and `redo run <name> --preflight` catch missing tools, missing files, missing dependencies, dirty Git state, and busy ports before commands fail.
+
 ## Why Redo Exists
 
 Every project has commands that people keep retyping:
@@ -42,6 +48,9 @@ redo run build
 | Placeholders | Use values like `{message}` or `{project_name}` at run time. |
 | Rich run UI | See clean progress, status, failures, and optional command output. |
 | Dry runs | Preview exactly what will run before executing anything. |
+| Project workflows | Keep workflows inside `.redo/workflows.json` for each repository. |
+| Setup scanner | Generate install, dev, build, test, run, and clean workflows from common project files. |
+| Preflight checks | Catch missing tools, files, env setup, dependencies, and busy dev ports. |
 | Edit command | Fix saved workflows without deleting and recreating them. |
 | Templates | Start from useful built-in developer workflow templates. |
 | Linting | Catch comma-separated command mistakes, risky commands, and typos. |
@@ -74,6 +83,21 @@ redo --info
 ```
 
 ## Quick Start
+
+Generate project workflows automatically:
+
+```bash
+redo setup --dry
+redo setup --yes
+redo list --project
+```
+
+Check before running:
+
+```bash
+redo preflight dev
+redo run dev --preflight
+```
 
 Create a workflow:
 
@@ -146,14 +170,22 @@ git push
 
 | Command | Purpose |
 | --- | --- |
+| `redo init --project` | Create `.redo/workflows.json` in the current project. |
+| `redo setup` | Scan the current project and suggest project-local workflows. |
+| `redo setup --dry` | Preview generated workflows without writing files. |
+| `redo setup --yes` | Generate project workflows without an extra confirmation prompt. |
 | `redo new <name>` | Create a workflow interactively. |
 | `redo use <template> <name>` | Create a workflow from a template. |
 | `redo run <name>` | Run a saved workflow. |
 | `redo run <name> --dry` | Preview commands without running them. |
+| `redo run <name> --preflight` | Check the project before running the workflow. |
 | `redo run <name> --show-output` | Show captured output after successful commands. |
 | `redo edit <name>` | Edit a saved workflow. |
 | `redo list` | List workflows. |
+| `redo list --project` | List only project-local workflows. |
+| `redo list --global` | List only global workflows. |
 | `redo show <name>` | Show workflow details. |
+| `redo preflight <name>` | Run checks without executing the workflow. |
 | `redo search <query>` | Search names, descriptions, and commands. |
 | `redo lint` | Find common workflow mistakes. |
 | `redo stats` | Show usage and estimated time saved. |
@@ -169,9 +201,62 @@ redo backup --dir backups
 redo export workflows.json
 redo import workflows.json
 redo path
+redo path --project
 redo folder
 redo clearhistory
 ```
+
+## Project-Local Workflows
+
+Create project storage:
+
+```bash
+redo init --project
+```
+
+Redo writes:
+
+```txt
+.redo/workflows.json
+```
+
+When you run, list, show, lint, or inspect workflows, Redo checks project workflows first and global workflows second. If both locations contain `dev`, the project-local `dev` workflow wins inside that project.
+
+## Automatic Setup
+
+`redo setup` detects common project types:
+
+| Project | Detection | Suggested workflows |
+| --- | --- | --- |
+| Node | `package.json` | `install`, script-backed `dev`, `build`, `test`, plus confirmed `clean` |
+| Python | `requirements.txt`, `pyproject.toml`, or `setup.py` | `install`, `test`, `clean` |
+| Rust | `Cargo.toml` | `build`, `test`, `run`, `clean` |
+
+Generated workflows are project-local and include descriptions. Existing project workflows are not overwritten unless you confirm.
+
+## Preflight Checks
+
+Run checks without executing commands:
+
+```bash
+redo preflight dev
+```
+
+Or check first, then run:
+
+```bash
+redo run dev --preflight
+```
+
+Preflight checks for tools such as `git`, `npm`, `node`, `python`, `pip`, `pytest`, and `cargo`; project files such as `package.json`, `requirements.txt`, `pyproject.toml`, and `Cargo.toml`; missing `node_modules`, missing `.venv`, `.env.example` without `.env`, dirty Git state for risky deploy-style commands, and common busy dev ports.
+
+## Frictionless Mission Fit
+
+The v1.2.0 QoL work maps directly to Frictionless:
+
+1. **Project-local workflows** reduce setup drift because each repository can carry its own repeatable commands.
+2. **Automatic workflow generation** removes the blank-page problem for new users by turning existing project files into useful Redo workflows.
+3. **Preflight checks** catch common failure points before a workflow starts, making `setup`, `dev`, `build`, `test`, and `ship` feel predictable.
 
 ## Placeholders
 
@@ -219,6 +304,12 @@ You can print the exact path:
 
 ```bash
 redo path
+```
+
+Project workflows live in `.redo/workflows.json` and can be located with:
+
+```bash
+redo path --project
 ```
 
 For testing or custom setups, override the storage directory:

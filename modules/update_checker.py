@@ -9,6 +9,7 @@ from modules import storage
 
 PYPI_URL = "https://pypi.org/pypi/redo-cli/json"
 CACHE_SECONDS = 60 * 60 * 24
+CURRENT_VERSION = "1.1.8"
 
 
 def _result(code, status, message, data=None):

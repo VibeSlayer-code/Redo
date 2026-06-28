@@ -8,10 +8,10 @@ from typing import Optional
 import typer
 from rich.prompt import Confirm, Prompt
 
-from modules import inspector, placeholders, runner, storage, templates, ui, update_checker
+from modules import inspector, placeholders, preflight as preflight_checks, project, runner, scanner, storage, templates, ui, update_checker
 
 
-VERSION = "1.1.7"
+VERSION = update_checker.CURRENT_VERSION
 CREDIT = "Vibeslayer-code"
 COMMAND_CONTEXT = {"help_option_names": ["--help", "-h"]}
 
@@ -91,9 +91,11 @@ def root(
 
 
 @app.command("init", context_settings=COMMAND_CONTEXT)
-def init():
+def init(
+    project_local: bool = typer.Option(False, "--project", help="Create .redo/workflows.json in this project."),
+):
     """Create Redo workflow storage if needed."""
-    result = storage.initialize_file()
+    result = project.initialize_project_file() if project_local else storage.initialize_file()
     _print_result(result)
     raise typer.Exit(code=_failure_exit_for_result(result))
 
@@ -135,25 +137,52 @@ def new_workflow(name: str = typer.Argument(..., help="Workflow name to create."
 
 
 @app.command("list", context_settings=COMMAND_CONTEXT)
-def list_workflows():
+def list_workflows(
+    global_only: bool = typer.Option(False, "--global", help="List only global workflows."),
+    project_only: bool = typer.Option(False, "--project", help="List only project workflows."),
+):
     """List saved workflows."""
-    result = storage.load_workflows()
+    if global_only and project_only:
+        ui.print_warning("choose either --global or --project")
+        raise typer.Exit(code=1)
+
+    result = project.load_visible_workflows(include_project=not global_only, include_global=not project_only)
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    ui.show_workflows_table(result["data"])
+    ui.show_workflows_table(result["data"]["workflows"], result["data"]["sources"] if not global_only else None)
 
 
 @app.command("search", context_settings=COMMAND_CONTEXT)
 def search_workflows(query: str = typer.Argument(..., help="Text to find in workflows.")):
     """Search workflow names, descriptions, and commands."""
-    result = storage.find_workflows(query)
+    visible = project.load_visible_workflows()
+    if visible["code"] != 0:
+        _print_result(visible)
+        raise typer.Exit(code=1)
+
+    query_lower = query.lower()
+    matches = {}
+    sources = {}
+    for name, workflow in visible["data"]["workflows"].items():
+        searchable_text = " ".join(
+            [
+                name,
+                workflow.get("description", ""),
+                " ".join(workflow.get("commands", [])),
+            ]
+        ).lower()
+        if query_lower in searchable_text:
+            matches[name] = workflow
+            sources[name] = visible["data"]["sources"].get(name)
+
+    result = {"code": 0, "status": "success", "message": "workflow search completed", "data": {"workflows": matches, "sources": sources}}
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    ui.show_workflows_table(result["data"])
+    ui.show_workflows_table(result["data"]["workflows"], result["data"]["sources"])
 
 
 @app.command("templates", context_settings=COMMAND_CONTEXT)
@@ -181,12 +210,12 @@ def use_template(
 @app.command("show", context_settings=COMMAND_CONTEXT)
 def show_workflow(name: str = typer.Argument(..., help="Workflow name to inspect.")):
     """Show workflow details."""
-    result = storage.get_workflow(name)
+    result = project.get_visible_workflow(name)
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    ui.show_workflow_details(name, result["data"])
+    ui.show_workflow_details(name, result["data"]["workflow"], source=result["data"]["source"])
 
 
 @app.command("edit", context_settings=COMMAND_CONTEXT)
@@ -233,7 +262,7 @@ def edit_workflow(
 @app.command("delete", context_settings=COMMAND_CONTEXT)
 def delete_workflow(name: str = typer.Argument(..., help="Workflow name to delete.")):
     """Delete a saved workflow."""
-    result = storage.delete_workflow(name)
+    result = project.delete_visible_workflow(name)
     _print_result(result)
     _raise_for_result(result)
 
@@ -261,12 +290,12 @@ def guide():
 @app.command("lint", context_settings=COMMAND_CONTEXT)
 def lint_workflows():
     """Check saved workflows for common mistakes."""
-    result = storage.load_workflows()
+    result = project.load_visible_workflows()
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    lint_result = inspector.lint_workflows(result["data"])
+    lint_result = inspector.lint_workflows(result["data"]["workflows"])
     ui.show_lint_report(lint_result)
     _raise_for_result(lint_result)
 
@@ -297,17 +326,29 @@ def rename_workflow(
 def run_workflow(
     name: str = typer.Argument(..., help="Workflow name to run."),
     dry: bool = typer.Option(False, "--dry", help="Preview commands without running them."),
+    preflight: bool = typer.Option(False, "--preflight", help="Run preflight checks before executing."),
     show_output: bool = typer.Option(False, "--show-output", help="Show captured output after successful commands."),
     verbose: bool = typer.Option(False, "--verbose", "-v", help="Let commands print directly while they run."),
     shell: str = typer.Option("auto", "--shell", help="Shell to use: auto, powershell, cmd, bash, sh, system."),
 ):
     """Run a saved workflow."""
-    result = storage.get_workflow(name)
+    result = project.get_visible_workflow(name)
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    commands = placeholders.process_commands(result["data"].get("commands", []))
+    workflow = result["data"]["workflow"]
+    source = result["data"]["source"]
+    commands = placeholders.process_commands(workflow.get("commands", []))
+
+    if preflight:
+        preflight_result = preflight_checks.run_preflight(name, commands)
+        ui.show_preflight_report(preflight_result)
+        if preflight_result["code"] == 1 and not dry:
+            if not Confirm.ask("Preflight found errors. Continue anyway?", default=False):
+                ui.print_warning("workflow cancelled by user")
+                raise typer.Exit(code=1)
+
     if dry:
         ui.show_commands(commands)
 
@@ -316,7 +357,7 @@ def run_workflow(
     _print_result(run_result)
 
     if run_result["code"] == 0 and not dry:
-        increment_result = storage.increment_runs(name)
+        increment_result = project.increment_visible_runs(name, source)
         if increment_result["code"] != 0:
             _print_result(increment_result)
             raise typer.Exit(code=1)
@@ -327,12 +368,12 @@ def run_workflow(
 @app.command("stats", context_settings=COMMAND_CONTEXT)
 def stats():
     """Show workflow usage stats."""
-    result = storage.load_workflows()
+    result = project.load_visible_workflows()
     if result["code"] != 0:
         _print_result(result)
         raise typer.Exit(code=1)
 
-    ui.show_stats(result["data"])
+    ui.show_stats(result["data"]["workflows"])
 
 
 @app.command("update", context_settings=COMMAND_CONTEXT)
@@ -358,9 +399,73 @@ def update(
 
 
 @app.command("path", context_settings=COMMAND_CONTEXT)
-def workflow_path():
+def workflow_path(
+    project_local: bool = typer.Option(False, "--project", help="Show this project's .redo/workflows.json path."),
+):
     """Show where Redo stores workflows for this directory."""
-    typer.echo(str(storage.DATA_FILE.resolve()))
+    path = project.project_workflow_path() if project_local else storage.DATA_FILE
+    typer.echo(str(path.resolve()))
+
+
+@app.command("setup", context_settings=COMMAND_CONTEXT)
+def setup(
+    yes: bool = typer.Option(False, "--yes", "-y", help="Create workflows without asking."),
+    dry: bool = typer.Option(False, "--dry", help="Preview generated workflows without writing."),
+):
+    """Scan this project and generate project-local workflows."""
+    detect_result = scanner.detect_project()
+    if detect_result["code"] != 0:
+        _print_result(detect_result)
+        raise typer.Exit(code=1)
+
+    data = detect_result["data"]
+    ui.print_success(detect_result["message"])
+    ui.show_setup_suggestions(data["type"], data["workflows"])
+
+    if dry:
+        ui.print_warning("dry run: no project workflows were written")
+        raise typer.Exit(code=0)
+
+    if not data["workflows"]:
+        raise typer.Exit(code=1)
+
+    project_path = project.project_workflow_path()
+    existing = storage.load_workflows_from(project_path, initialize_missing=False)
+    existing_names = set(existing.get("data", {})) if existing["code"] == 0 else set()
+    conflicts = sorted(name for name in data["workflows"] if name in existing_names)
+
+    if not yes and not Confirm.ask("Create these project workflows?", default=False):
+        ui.print_warning("setup cancelled")
+        raise typer.Exit(code=1)
+
+    overwrite = False
+    if conflicts:
+        if yes:
+            overwrite = True
+            ui.print_warning(f"overwriting existing project workflows: {', '.join(conflicts)}")
+        else:
+            overwrite = Confirm.ask(f"Overwrite existing project workflows ({', '.join(conflicts)})?", default=False)
+
+    write_result = scanner.write_project_workflows(data["workflows"], overwrite=overwrite)
+    if write_result["code"] != 0:
+        _print_result(write_result)
+        raise typer.Exit(code=1)
+
+    ui.show_setup_write_result(write_result["data"])
+    _print_result(write_result)
+
+
+@app.command("preflight", context_settings=COMMAND_CONTEXT)
+def preflight(name: str = typer.Argument(..., help="Workflow name to check.")):
+    """Run preflight checks without executing a workflow."""
+    result = project.get_visible_workflow(name)
+    if result["code"] != 0:
+        _print_result(result)
+        raise typer.Exit(code=1)
+
+    check_result = preflight_checks.run_preflight(name, result["data"]["workflow"].get("commands", []))
+    ui.show_preflight_report(check_result)
+    raise typer.Exit(code=1 if check_result["code"] == 1 else 0)
 
 
 @app.command("folder", context_settings=COMMAND_CONTEXT)

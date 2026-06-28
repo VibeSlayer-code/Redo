@@ -251,8 +251,13 @@ def show_help_menu(version):
     )
     commands.add_row(
         "Inspect",
-        "redo show <name>\nredo run <name> --dry\nredo run <name> --show-output\nredo search <query>",
-        "Preview commands and view output when you need it.",
+        "redo show <name>\nredo preflight <name>\nredo run <name> --dry\nredo run <name> --show-output\nredo search <query>",
+        "Preview, verify, and inspect commands before they fail.",
+    )
+    commands.add_row(
+        "Project",
+        "redo init --project\nredo setup\nredo list --project\nredo path --project",
+        "Keep useful workflows with the repository you are working in.",
     )
     commands.add_row(
         "Care",
@@ -274,6 +279,7 @@ def show_guide():
     basics.add_row("2. Run", "redo run ship")
     basics.add_row("3. Fix", "redo edit ship")
     basics.add_row("4. Preview", "redo run ship --dry")
+    basics.add_row("5. Project", "redo setup --dry")
 
     example = Syntax(
         'Description: Commit and push code\n'
@@ -308,6 +314,8 @@ def show_guide():
     tips.add_column(style=MUTED, no_wrap=True)
     tips.add_column()
     tips.add_row("Tip", "Enter one command per prompt. Do not separate commands with commas.")
+    tips.add_row("Project", "Use redo init --project or redo setup to keep workflows in .redo/workflows.json.")
+    tips.add_row("Check", "Use redo preflight <name> before setup, dev, build, test, or deploy workflows.")
     tips.add_row("Git", 'Use git commit -m "{message}" for commit messages.')
     tips.add_row("Safety", "Use redo run ship --dry before the first real run.")
 
@@ -318,7 +326,7 @@ def show_guide():
     console.print(Panel(tips, title="Quick notes", border_style=PANEL_BORDER, box=box.ROUNDED))
 
 
-def show_workflows_table(workflows):
+def show_workflows_table(workflows, sources=None):
     if not workflows:
         console.print(
             Panel(
@@ -339,17 +347,21 @@ def show_workflows_table(workflows):
     )
     table.add_column("Name", style="bold", no_wrap=True)
     table.add_column("Description", overflow="fold")
+    if sources:
+        table.add_column("Source", no_wrap=True)
     table.add_column("Commands", justify="right", no_wrap=True)
     table.add_column("Runs", justify="right", style=NUMBER, no_wrap=True)
 
     for name, workflow in sorted(workflows.items()):
         command_count = len(workflow.get("commands", []))
-        table.add_row(
+        row = [
             name,
             workflow.get("description", "") or "-",
-            _plural(command_count, "command"),
-            str(workflow.get("runs", 0)),
-        )
+        ]
+        if sources:
+            row.append(sources.get(name, "-"))
+        row.extend([_plural(command_count, "command"), str(workflow.get("runs", 0))])
+        table.add_row(*row)
 
     console.print(table)
 
@@ -422,15 +434,16 @@ def show_update_result(result, install_command="pip install --upgrade redo-cli")
     console.print(Panel(body, title="Redo update", border_style=border, box=box.ROUNDED))
 
 
-def show_workflow_details(name, workflow):
+def show_workflow_details(name, workflow, source=None):
     commands = workflow.get("commands", [])
-    metadata = _metadata_table(
-        [
-            ("Description", workflow.get("description", "") or "-"),
-            ("Commands", _plural(len(commands), "command")),
-            ("Runs", workflow.get("runs", 0)),
-        ]
-    )
+    rows = [
+        ("Description", workflow.get("description", "") or "-"),
+        ("Commands", _plural(len(commands), "command")),
+        ("Runs", workflow.get("runs", 0)),
+    ]
+    if source:
+        rows.append(("Source", source))
+    metadata = _metadata_table(rows)
 
     console.print(
         Panel(
@@ -442,6 +455,72 @@ def show_workflow_details(name, workflow):
         )
     )
     show_commands(commands)
+
+
+def show_setup_suggestions(project_type, workflows):
+    if not workflows:
+        console.print(
+            Panel(
+                Text("No workflows could be generated for this project.", style=MUTED),
+                title="Setup suggestions",
+                border_style=WARNING,
+                box=box.ROUNDED,
+            )
+        )
+        return
+
+    table = Table(
+        title=f"Suggested {project_type} workflows",
+        box=box.ROUNDED,
+        border_style=TABLE_BORDER,
+        header_style=BRAND,
+        show_lines=False,
+    )
+    table.add_column("Name", style="bold", no_wrap=True)
+    table.add_column("Command", overflow="fold")
+    table.add_column("Description", overflow="fold")
+
+    for name, workflow in sorted(workflows.items()):
+        table.add_row(
+            Text(name),
+            Text("\n".join(workflow.get("commands", []))),
+            Text(workflow.get("description", "") or "-"),
+        )
+
+    console.print(table)
+
+
+def show_setup_write_result(data):
+    rows = [
+        ("Path", data.get("path", "-")),
+        ("Created", ", ".join(data.get("written", [])) or "-"),
+        ("Overwritten", ", ".join(data.get("overwritten", [])) or "-"),
+        ("Skipped", ", ".join(data.get("skipped", [])) or "-"),
+    ]
+    console.print(Panel(_metadata_table(rows), title="Project workflows", border_style=SUCCESS, box=box.ROUNDED))
+
+
+def show_preflight_report(result):
+    data = result.get("data", {})
+    border = ERROR if data.get("errors") else WARNING if data.get("warnings") else SUCCESS
+
+    sections = []
+    sections.append(Text(f"Preflight: {data.get('name', '-')}", style=BRAND))
+
+    for title, key, style in (
+        ("Passed", "passed", SUCCESS),
+        ("Errors", "errors", ERROR),
+        ("Warnings", "warnings", WARNING),
+        ("Suggested fixes", "fixes", MUTED),
+    ):
+        items = data.get(key, [])
+        if not items:
+            continue
+        sections.extend(["", Text(f"{title}:", style=style)])
+        for item in items:
+            sections.append(Text(f"- {item}"))
+
+    console.print(Panel(Group(*sections), title="Preflight", border_style=border, box=box.ROUNDED))
 
 
 def show_commands(commands):

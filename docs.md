@@ -225,8 +225,9 @@ Use this checklist:
 
 Before publishing a release:
 
-1. Update `VERSION` in `main.py`.
-2. Update `version` in `pyproject.toml`.
+1. Update `CURRENT_VERSION` in `modules/update_checker.py`.
+2. Confirm `VERSION` in `main.py` reads from `update_checker.CURRENT_VERSION`.
+3. Update `version` in `pyproject.toml`.
 3. Run:
 
 ```bash

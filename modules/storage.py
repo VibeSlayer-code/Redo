@@ -117,14 +117,19 @@ def validate_workflow_name(name):
     return _result(0, "success", "workflow name is valid")
 
 
-def initialize_file():
+def initialize_file_at(path):
+    path = Path(path)
     try:
-        if DATA_FILE.exists() and DATA_FILE.read_text(encoding="utf-8").strip():
+        if path.exists() and path.read_text(encoding="utf-8").strip():
             return _result(2, "warning", "workflow file already exists")
-        _write_text_file(DATA_FILE, "{}\n")
+        _write_text_file(path, "{}\n")
         return _result(0, "success", "workflow file initialized")
     except (OSError, UnicodeDecodeError) as error:
         return _result(1, "error", f"could not initialize workflow file: {error}")
+
+
+def initialize_file():
+    return initialize_file_at(DATA_FILE)
 
 
 def _broken_backup_file():
@@ -258,14 +263,17 @@ def autofix_storage():
     return _result(0, "success", "autofix completed", {"fixes": fixes})
 
 
-def load_workflows():
+def load_workflows_from(path, initialize_missing=True):
+    path = Path(path)
     try:
-        if not DATA_FILE.exists() or not DATA_FILE.read_text(encoding="utf-8").strip():
-            init_result = initialize_file()
+        if not path.exists() or not path.read_text(encoding="utf-8").strip():
+            if not initialize_missing:
+                return _result(0, "success", "workflows loaded successfully", {})
+            init_result = initialize_file_at(path)
             if init_result["code"] == 1:
                 return {**init_result, "data": {}}
 
-        with DATA_FILE.open("r", encoding="utf-8") as file:
+        with path.open("r", encoding="utf-8") as file:
             data = json.load(file)
     except json.JSONDecodeError:
         return _result(2, "warning", "workflow file is malformed", {})
@@ -278,16 +286,24 @@ def load_workflows():
     return _result(0, "success", "workflows loaded successfully", data)
 
 
-def save_workflows(workflows):
+def load_workflows():
+    return load_workflows_from(DATA_FILE)
+
+
+def save_workflows_to(path, workflows):
     if not isinstance(workflows, dict):
         return _result(1, "error", "workflows must be a dictionary")
 
     try:
-        _write_json_file(DATA_FILE, workflows)
+        _write_json_file(Path(path), workflows)
     except OSError as error:
         return _result(1, "error", f"could not save workflows: {error}")
 
     return _result(0, "success", "workflows saved successfully")
+
+
+def save_workflows(workflows):
+    return save_workflows_to(DATA_FILE, workflows)
 
 
 def clear_workflows():
